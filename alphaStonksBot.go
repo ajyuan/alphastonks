@@ -20,7 +20,7 @@ import (
 
 const (
 	// Base clock speed: 1 tick per tickDuration in milliseconds
-	tickDuration = 800
+	tickDuration = 1024
 	// Randomize additional sleep from 0 to this val in milliseconds
 	sleepRandRange = 1280
 
