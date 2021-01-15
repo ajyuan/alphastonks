@@ -20,9 +20,9 @@ import (
 
 const (
 	// Base clock speed: 1 tick per tickDuration in milliseconds
-	tickDuration = 1024
+	tickDuration = 800
 	// Randomize additional sleep from 0 to this val in milliseconds
-	sleepRandRange = 1280
+	sleepRandRange = 1024
 
 	// Community page parsing vars
 	ytTarget       = "https://www.youtube.com/c/Deadnsyde/community"
