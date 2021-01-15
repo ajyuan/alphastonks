@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -18,6 +19,11 @@ import (
 )
 
 const (
+	// Base clock speed: 1 tick per tickDuration in milliseconds
+	tickDuration = 800
+	// Randomize additional sleep from 0 to this val in milliseconds
+	sleepRandRange = 1280
+
 	// Community page parsing vars
 	ytTarget       = "https://www.youtube.com/c/Deadnsyde/community"
 	cookieData     = "LOGIN_INFO=AFmmF2swRQIgHMWsQHQ-90wybzpWtLWiT2ZBzVTEpBFKRTY8uZdr2KcCIQCLbYFdhRci3b09nS5XwhMIcJSyTPYCcj06VInnihPG4g:QUQ3MjNmdy12NW1Hc0l5d1lwRkNJTVoyYVhwR1d1MzJKa2Q2VEc4RDRvM0xwdlE4R3FuS2hoVDRadXdPaWtZeEk1TExWdjRVVG1WcGJnMmIxdVJ4Q0JTcWt4RlhoeU16R09YVU9XX2E5Zk1RT3ZQSnpUdzFrMmI5M0Zhb2RCMTBfMjdPMG4tNjhNdWo0dGw4MWZnZFkzcXdDVGg4U0tFa1QzQTVGRm9hMHNpN3BBdWZ6Tnk2MnE0; __Secure-3PSID=5gdH74PTb42Ro1o50WJwfDou628f_muSSJ2NXUIWDT0ksniTlIQ9jnM90C7zEyoUopRlrg."
@@ -102,6 +108,13 @@ func substr(page, prefix, suffix string) (string, error) {
 		return "", fmt.Errorf("extractPosts failed to find data suffix \"%s\"", suffix)
 	}
 	return page[si:ei], nil
+}
+
+func minZero(a int) int {
+	if a < 0 {
+		return 0
+	}
+	return a
 }
 
 // IsAH determines if the current time is within the after-hours trading window
@@ -199,6 +212,7 @@ func Recommendation(profile *ActionProfile, postText string) {
 }
 
 // Action checks the YT feed, analyze new posts, recommend action
+// Dependencies: YouTube
 func Action() (*ActionProfile, error) {
 	cl := &http.Client{}
 	page, err := communityPage(cl, ytTarget)
@@ -289,6 +303,7 @@ func orderRequest(alpacaCl *alpaca.Client, action *ActionProfile) (*alpaca.Place
 }
 
 // Execute executes an action profile
+// Dependencies: AlpacaAPI
 func Execute(action *ActionProfile) error {
 	if action.action == actionNoOp {
 		return nil
@@ -312,7 +327,7 @@ func Execute(action *ActionProfile) error {
 
 // Tick performs one check and potential buy
 func Tick() error {
-	defer timer()()
+	// defer timer()()
 	action, err := Action()
 	if err != nil {
 		return err
@@ -326,6 +341,7 @@ func Tick() error {
 
 func setup() {
 	log.SetLevel(logrus.DebugLevel)
+	rand.Seed(time.Now().UnixNano())
 	log.Debug("Establishing NY Time Offset")
 	var err error
 	nyTimezone, err = time.LoadLocation("America/New_York")
@@ -345,6 +361,7 @@ func setup() {
 func main() {
 	setup()
 	for true {
+		tickStart := time.Now()
 		err := Tick()
 		if err != nil {
 			if err == ErrInsufficientFunds {
@@ -353,7 +370,10 @@ func main() {
 				panic(err)
 			}
 		}
-		time.Sleep(time.Millisecond * 150)
+		sleepDuration := time.Millisecond * time.Duration(minZero(int(tickDuration-time.Since(tickStart).Milliseconds())+rand.Intn(sleepRandRange)))
+		log.Debugf("Tick completed in %v, sleeping for %v", time.Since(tickStart), sleepDuration)
+		time.Sleep(sleepDuration)
+
 		if IsAH() {
 			log.Infof("The time is %v and markets are closed, shutting down", time.Now().In(nyTimezone))
 			os.Exit(0)
