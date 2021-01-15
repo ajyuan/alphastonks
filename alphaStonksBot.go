@@ -57,8 +57,9 @@ var (
 	// ErrInsufficientFunds indicates not enough funds to buy stock at calculated limit price
 	ErrInsufficientFunds = fmt.Errorf("No money")
 
-	// Ticker Identification Config
-	tickerFalsePositives = []string{"I", "A", "ET", "DD", "CEO", "NOT", "USD", "VERY", "SUPER"}
+	// String filters
+	actionExecutableTimeFilter = []string{"hour", "day", "minute", "week", "month", "year"}
+	tickerFalsePositives       = []string{"I", "A", "ET", "DD", "CEO", "NOT", "USD", "VERY", "SUPER"}
 
 	// Time Config
 	nyTimezone *time.Location
@@ -93,7 +94,7 @@ func roundPriceDown(value float32) float64 {
 	return math.Floor(float64(value*100)) / 100
 }
 
-func substr(page, prefix, suffix string) (string, error) {
+func substrPrefSuf(page, prefix, suffix string) (string, error) {
 	si, n, ei := strings.Index(page, prefix)+len(prefix), len(suffix), -1
 	if si == -1 {
 		return "", fmt.Errorf("extractPosts failed to find data prefix \"%s\"", postTextPrefix)
@@ -211,6 +212,16 @@ func Recommendation(profile *ActionProfile, postText string) {
 	}
 }
 
+// actionExecutableTime determines if the current time is within execution time parameters
+func actionExecutableTime(ytTimeString string) bool {
+	for _, filterWord := range actionExecutableTimeFilter {
+		if strings.Contains(ytTimeString, filterWord) {
+			return false
+		}
+	}
+	return true
+}
+
 // Action checks the YT feed, analyze new posts, recommend action
 // Dependencies: YouTube
 func Action() (*ActionProfile, error) {
@@ -219,15 +230,15 @@ func Action() (*ActionProfile, error) {
 	if err != nil {
 		return nil, err
 	}
-	postText, err := substr(page, postTextPrefix, postTextSuffix)
+	postText, err := substrPrefSuf(page, postTextPrefix, postTextSuffix)
 	if err != nil {
 		return nil, err
 	}
-	postTime, err := substr(page, postTimePrefix, postTimeSuffix)
-	if postTime != "Just now" || postText == "" {
-		log.Infof("Latest post time was %s, skipping iteration", postTime)
+	postTime, err := substrPrefSuf(page, postTimePrefix, postTimeSuffix)
+	if !actionExecutableTime(postTime) || postText == "" {
 		return &ActionProfile{}, nil
 	}
+	log.Infof("Post time %s detected. Recommending action.", postTime)
 	ticker, err := Ticker(postText)
 	if err != nil {
 		// TODO: Better ticker error handling
@@ -348,7 +359,7 @@ func setup() {
 	if err != nil {
 		log.Fatalf("setup failed to establish NY time: %v", err)
 	}
-	log.Debug("Setting up Alpaca Client")
+	log.Info("Setting up Alpaca Client")
 	if common.Credentials().ID == "" {
 		os.Setenv(common.EnvApiKeyID, alpacaID)
 	}
@@ -356,6 +367,7 @@ func setup() {
 		os.Setenv(common.EnvApiSecretKey, alpacaSecret)
 	}
 	alpaca.SetBaseUrl(alpacaMarketURL)
+	log.Info("Setup Complete")
 }
 
 func main() {
@@ -371,7 +383,9 @@ func main() {
 			}
 		}
 		sleepDuration := time.Millisecond * time.Duration(minZero(int(tickDuration-time.Since(tickStart).Milliseconds())+rand.Intn(sleepRandRange)))
-		log.Debugf("Tick completed in %v, sleeping for %v", time.Since(tickStart), sleepDuration)
+		if time.Since(tickStart) > time.Second {
+			log.Warn("Thottling detected, last request took %v", time.Since(tickStart))
+		}
 		time.Sleep(sleepDuration)
 
 		if IsAH() {
