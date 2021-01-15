@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -214,12 +215,22 @@ func Recommendation(profile *ActionProfile, postText string) {
 
 // actionExecutableTime determines if the current time is within execution time parameters
 func actionExecutableTime(ytTimeString string) bool {
+	if ytTimeString[1:8] == " second" {
+		age, err := strconv.Atoi(string(ytTimeString[0]))
+		if err != nil {
+			log.Errorf("Unknown time %s", ytTimeString)
+		}
+		if age <= 2 {
+			return true
+		}
+	}
 	for _, filterWord := range actionExecutableTimeFilter {
 		if strings.Contains(ytTimeString, filterWord) {
 			return false
 		}
 	}
-	return true
+	log.Errorf("Unknown time %s", ytTimeString)
+	return false
 }
 
 // Action checks the YT feed, analyze new posts, recommend action
@@ -238,7 +249,6 @@ func Action() (*ActionProfile, error) {
 	if !actionExecutableTime(postTime) || postText == "" {
 		return &ActionProfile{}, nil
 	}
-	log.Infof("Post time %s detected. Recommending action.", postTime)
 	ticker, err := Ticker(postText)
 	if err != nil {
 		// TODO: Better ticker error handling
@@ -351,7 +361,7 @@ func Tick() error {
 }
 
 func setup() {
-	log.Infof("AlphaStonks v.%s", "1.02")
+	log.Infof("AlphaStonks v.%s", "1.03")
 	log.SetLevel(logrus.DebugLevel)
 	rand.Seed(time.Now().UnixNano())
 	log.Debug("Establishing NY Time Offset")
@@ -368,7 +378,7 @@ func setup() {
 		os.Setenv(common.EnvApiSecretKey, alpacaSecret)
 	}
 	alpaca.SetBaseUrl(alpacaMarketURL)
-	log.Info("Setup Complete")
+	log.Info("Setup complete, beginning monitoring")
 }
 
 func main() {
