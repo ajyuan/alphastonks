@@ -383,8 +383,8 @@ func main() {
 			}
 		}
 		sleepDuration := time.Millisecond * time.Duration(minZero(int(tickDuration-time.Since(tickStart).Milliseconds())+rand.Intn(sleepRandRange)))
-		if time.Since(tickStart) > time.Second {
-			log.Warn("Thottling detected, last request took %v", time.Since(tickStart))
+		if time.Since(tickStart) > time.Second*3 {
+			log.Warnf("Thottling detected, last request took %v", time.Since(tickStart))
 		}
 		time.Sleep(sleepDuration)
 
