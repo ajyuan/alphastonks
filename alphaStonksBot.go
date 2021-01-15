@@ -351,6 +351,7 @@ func Tick() error {
 }
 
 func setup() {
+	log.Infof("AlphaStonks v.%s", "1.02")
 	log.SetLevel(logrus.DebugLevel)
 	rand.Seed(time.Now().UnixNano())
 	log.Debug("Establishing NY Time Offset")
@@ -390,7 +391,7 @@ func main() {
 		time.Sleep(sleepDuration)
 		log.Warnf("last request took %v", time.Since(tickStart))
 
-		if IsAH() {
+		if PastAH() {
 			log.Infof("The time is %v and markets are closed, shutting down", time.Now().In(nyTimezone))
 			os.Exit(0)
 		}
