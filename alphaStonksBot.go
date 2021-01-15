@@ -374,6 +374,11 @@ func setup() {
 func main() {
 	setup()
 	for true {
+		if PastAH() {
+			log.Infof("The time is %v and markets are closed, shutting down", time.Now().In(nyTimezone))
+			os.Exit(0)
+		}
+
 		tickStart := time.Now()
 		err := Tick()
 		if err != nil {
@@ -389,11 +394,5 @@ func main() {
 		sleepDuration := time.Millisecond * time.Duration(
 			minZero(int(tickDuration-time.Since(tickStart).Milliseconds())+rand.Intn(sleepRandRange)))
 		time.Sleep(sleepDuration)
-		log.Warnf("last request took %v", time.Since(tickStart))
-
-		if PastAH() {
-			log.Infof("The time is %v and markets are closed, shutting down", time.Now().In(nyTimezone))
-			os.Exit(0)
-		}
 	}
 }
