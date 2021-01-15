@@ -51,6 +51,12 @@ var (
 	// ErrInsufficientFunds indicates not enough funds to buy stock at calculated limit price
 	ErrInsufficientFunds = fmt.Errorf("No money")
 
+	// Ticker Identification Config
+	tickerFalsePositives = []string{"I", "A", "ET", "DD", "CEO", "NOT", "USD", "VERY", "SUPER"}
+
+	// Time Config
+	nyTimezone *time.Location
+
 	log = logrus.New()
 )
 
@@ -66,6 +72,15 @@ func timer() func() {
 	return func() {
 		log.Infof("Iteration completed in %v", time.Since(start))
 	}
+}
+
+func stringIn(list []string, a string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
 }
 
 func roundPriceDown(value float32) float64 {
@@ -89,6 +104,22 @@ func substr(page, prefix, suffix string) (string, error) {
 	return page[si:ei], nil
 }
 
+// IsAH determines if the current time is within the after-hours trading window
+func IsAH() bool {
+	currHour := time.Now().In(nyTimezone).Hour()
+	if currHour >= 16 && currHour < 18 {
+		return true
+	} else if currHour == 9 && (time.Now().In(nyTimezone).Minute() < 30) {
+		return true
+	}
+	return false
+}
+
+// PastAH indicates the time is past after-hours trading
+func PastAH() bool {
+	return time.Now().In(nyTimezone).Hour() == 18
+}
+
 func communityPage(cl *http.Client, target string) (string, error) {
 	req, err := http.NewRequest("GET", target, nil)
 	if err != nil {
@@ -100,6 +131,9 @@ func communityPage(cl *http.Client, target string) (string, error) {
 		return "", fmt.Errorf("fetchPage failed to request page: %v", err)
 	}
 	page, err := ioutil.ReadAll(resp.Body)
+	f, _ := os.Create("com-page.html")
+	defer f.Close()
+	f.Write(page)
 	return string(page), err
 }
 
@@ -121,7 +155,10 @@ func Ticker(postText string) (string, error) {
 		if !unicode.IsLetter(rune(word[len(word)-1])) {
 			word = word[:len(word)-1]
 		}
-		if len(word) > 5 || word == "A" || word == "I" {
+		if len(word) > 5 {
+			continue
+		}
+		if stringIn(tickerFalsePositives, word) {
 			continue
 		}
 		for _, char := range word {
@@ -130,7 +167,7 @@ func Ticker(postText string) (string, error) {
 				continue
 			}
 		}
-		if !skipWord && len(word) != 0 {
+		if !skipWord && len(word) != 0 && !stringIn(tickers, word) {
 			tickers = append(tickers, word)
 			continue
 		}
@@ -289,6 +326,13 @@ func Tick() error {
 
 func setup() {
 	log.SetLevel(logrus.DebugLevel)
+	log.Debug("Establishing NY Time Offset")
+	var err error
+	nyTimezone, err = time.LoadLocation("America/New_York")
+	if err != nil {
+		log.Fatalf("setup failed to establish NY time: %v", err)
+	}
+	log.Debug("Setting up Alpaca Client")
 	if common.Credentials().ID == "" {
 		os.Setenv(common.EnvApiKeyID, alpacaID)
 	}
@@ -310,5 +354,9 @@ func main() {
 			}
 		}
 		time.Sleep(time.Millisecond * 150)
+		if IsAH() {
+			log.Infof("The time is %v and markets are closed, shutting down", time.Now().In(nyTimezone))
+			os.Exit(0)
+		}
 	}
 }
