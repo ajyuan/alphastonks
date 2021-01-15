@@ -20,9 +20,9 @@ import (
 
 const (
 	// Base clock speed: 1 tick per tickDuration in milliseconds
-	tickDuration = 800
+	tickDuration = 350
 	// Randomize additional sleep from 0 to this val in milliseconds
-	sleepRandRange = 1024
+	sleepRandRange = 512
 
 	// Community page parsing vars
 	ytTarget       = "https://www.youtube.com/c/Deadnsyde/community"
@@ -359,7 +359,7 @@ func setup() {
 	if err != nil {
 		log.Fatalf("setup failed to establish NY time: %v", err)
 	}
-	log.Info("Setting up Alpaca Client")
+	log.Debug("Setting up Alpaca Client")
 	if common.Credentials().ID == "" {
 		os.Setenv(common.EnvApiKeyID, alpacaID)
 	}
@@ -382,11 +382,13 @@ func main() {
 				panic(err)
 			}
 		}
-		sleepDuration := time.Millisecond * time.Duration(minZero(int(tickDuration-time.Since(tickStart).Milliseconds())+rand.Intn(sleepRandRange)))
 		if time.Since(tickStart) > time.Second*3 {
 			log.Warnf("Thottling detected, last request took %v", time.Since(tickStart))
 		}
+		sleepDuration := time.Millisecond * time.Duration(
+			minZero(int(tickDuration-time.Since(tickStart).Milliseconds())+rand.Intn(sleepRandRange)))
 		time.Sleep(sleepDuration)
+		log.Warnf("last request took %v", time.Since(tickStart))
 
 		if IsAH() {
 			log.Infof("The time is %v and markets are closed, shutting down", time.Now().In(nyTimezone))
