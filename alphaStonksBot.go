@@ -20,6 +20,10 @@ import (
 )
 
 const (
+	// Testing vars
+	ignoreMarketHours = true
+	ignorePostAge     = true
+
 	// Base clock speed: 1 tick per tickDuration in milliseconds
 	tickDuration = 512
 
@@ -27,7 +31,7 @@ const (
 	ytTarget       = "https://www.youtube.com/c/Deadnsyde/community"
 	cookieData     = "LOGIN_INFO=AFmmF2swRQIgHMWsQHQ-90wybzpWtLWiT2ZBzVTEpBFKRTY8uZdr2KcCIQCLbYFdhRci3b09nS5XwhMIcJSyTPYCcj06VInnihPG4g:QUQ3MjNmdy12NW1Hc0l5d1lwRkNJTVoyYVhwR1d1MzJKa2Q2VEc4RDRvM0xwdlE4R3FuS2hoVDRadXdPaWtZeEk1TExWdjRVVG1WcGJnMmIxdVJ4Q0JTcWt4RlhoeU16R09YVU9XX2E5Zk1RT3ZQSnpUdzFrMmI5M0Zhb2RCMTBfMjdPMG4tNjhNdWo0dGw4MWZnZFkzcXdDVGg4U0tFa1QzQTVGRm9hMHNpN3BBdWZ6Tnk2MnE0; __Secure-3PSID=5gdH74PTb42Ro1o50WJwfDou628f_muSSJ2NXUIWDT0ksniTlIQ9jnM90C7zEyoUopRlrg."
 	postTextPrefix = "\"contentText\":{\"runs\":[{\"text\":\""
-	postTextSuffix = "\"}]},"
+	postTextSuffix = "},"
 	postTimePrefix = "\"publishedTimeText\":{\"runs\":[{\"text\":\""
 	postTimeSuffix = "\","
 
@@ -58,18 +62,25 @@ var (
 
 	// String filters
 	actionExecutableTimeFilter = []string{"hour", "day", "minute", "week", "month", "year"}
-	tickerFalsePositives       = []string{"I", "A", "ET", "DD", "DM", "CEO", "NOT", "USD", "VERY", "SUPER", "REALLY"}
+	tickerFalsePositives       = []string{"I", "A", "ET", "DD", "DM", "ARK", "CEO", "ETF", "NOT", "USD", "VERY", "SUPER", "REALLY"}
 
 	// Time Config
-	nyTimezone *time.Location
-
+	nyTimezone       *time.Location
+	ytReqTimeout     = time.Second * 16
 	orderTimeInForce = time.Second * 8
 
 	log = logrus.New()
 )
 
 type setupOutput struct {
+	httpCl   *http.Client
 	alpacaCl *alpaca.Client
+}
+
+// YTPostDetails contains details about a post required to make an action on it
+type YTPostDetails struct {
+	postTime string
+	postText string
 }
 
 // ActionProfile contains info to execute a market operation on a stock
@@ -137,6 +148,21 @@ func IsAH() bool {
 // PastAH indicates the time is past after-hours trading
 func PastAH() bool {
 	return time.Now().In(nyTimezone).Hour() == 18
+}
+
+func marketHoliday(alpacaCl *alpaca.Client) bool {
+	today := time.Now().Format("2006-01-02")
+	calendar, err := alpacaCl.GetCalendar(&today, &today)
+	if err != nil {
+		log.Errorf("marketHoliday error occurred when retrieving calendar: %v", err)
+		// Don't let a failed calendar check conclude today is not a market day
+		return false
+	}
+	if len(calendar) != 1 {
+		log.Errorf("marketHoliday returned an calendar list of len %d, assuming market open at standard hours", len(calendar))
+		return false
+	}
+	return today != calendar[0].Date
 }
 
 func communityPage(cl *http.Client, target string) (string, error) {
@@ -237,44 +263,6 @@ func discoveredWithinBounds(ytTimeString string) bool {
 	return false
 }
 
-// Action checks the YT feed, analyze new posts, recommend action
-// Dependencies: YouTube
-func Action() (*ActionProfile, error) {
-	cl := &http.Client{}
-	page, err := communityPage(cl, ytTarget)
-	if err != nil {
-		return nil, err
-	}
-	postText, err := substrPrefSuf(page, postTextPrefix, postTextSuffix)
-	if err != nil {
-		return nil, err
-	}
-	postTime, err := substrPrefSuf(page, postTimePrefix, postTimeSuffix)
-	if !discoveredWithinBounds(postTime) || postText == "" {
-		return &ActionProfile{}, nil
-	}
-	ticker, err := Ticker(postText)
-	if err != nil {
-		// TODO: Better ticker error handling
-		return &ActionProfile{}, nil
-	}
-	profile := &ActionProfile{ticker: ticker}
-	Recommendation(profile, postText)
-	return profile, err
-}
-
-// goodTransationCheck checks if the transaction was computed too late to achieve ROI
-func goodTransactionCheck(alpacaCl *alpaca.Client, action *ActionProfile) bool {
-	/*
-		barParams := alpaca.ListBarParams{
-			Timeframe: "1Min",
-			EndDt:     time.Now(),
-		}
-		bars, err := alpacaCl.GetSymbolBars(action.ticker, barParams)
-	*/
-	return true
-}
-
 // actionPrice estimates an upper limit price that the order should be filled by
 func actionPrice(alpacaCl *alpaca.Client, action *ActionProfile) (float64, error) {
 	resp, err := alpacaCl.GetLastQuote(action.ticker)
@@ -327,6 +315,43 @@ func orderRequest(alpacaCl *alpaca.Client, action *ActionProfile) (*alpaca.Place
 	return &req, nil
 }
 
+// YTPost extracts information about the latest post from YT
+func YTPost(cl *http.Client) (*YTPostDetails, error) {
+	page, err := communityPage(cl, ytTarget)
+	if err != nil {
+		return nil, err
+	}
+	postText, err := substrPrefSuf(page, postTextPrefix, postTextSuffix)
+	if err != nil {
+		return nil, err
+	}
+	postTime, err := substrPrefSuf(page, postTimePrefix, postTimeSuffix)
+	if err != nil {
+		return nil, err
+	}
+	return &YTPostDetails{
+		postText: postText,
+		postTime: postTime,
+	}, nil
+}
+
+// Action checks the YT feed, analyze new posts, recommend action
+// Dependencies: YouTube
+func Action(post *YTPostDetails) (*ActionProfile, error) {
+	if (!discoveredWithinBounds(post.postTime) || post.postText == "") && !ignorePostAge {
+		log.Debugf("Last post was created at time %s, too late to be actionable. Skipping.", post.postTime)
+		return &ActionProfile{}, nil
+	}
+	ticker, err := Ticker(post.postText)
+	if err != nil {
+		// TODO: Better ticker error handling
+		return &ActionProfile{}, nil
+	}
+	profile := &ActionProfile{ticker: ticker}
+	Recommendation(profile, post.postText)
+	return profile, err
+}
+
 // Execute executes an action profile
 // Dependencies: AlpacaAPI
 func Execute(action *ActionProfile, alpacaCl *alpaca.Client) error {
@@ -352,9 +377,13 @@ func Execute(action *ActionProfile, alpacaCl *alpaca.Client) error {
 }
 
 // Tick performs one check and potential buy
-func Tick(alpacaCl *alpaca.Client) error {
+func Tick(cl *http.Client, alpacaCl *alpaca.Client) error {
 	// defer timer()()
-	action, err := Action()
+	post, err := YTPost(cl)
+	if err != nil {
+		return err
+	}
+	action, err := Action(post)
 	if err != nil {
 		return err
 	}
@@ -363,21 +392,6 @@ func Tick(alpacaCl *alpaca.Client) error {
 		return err
 	}
 	return nil
-}
-
-func marketHoliday(alpacaCl *alpaca.Client) bool {
-	today := time.Now().Format("2006-01-02")
-	calendar, err := alpacaCl.GetCalendar(&today, &today)
-	if err != nil {
-		log.Errorf("marketHoliday error occurred when retrieving calendar: %v", err)
-		// Don't let a failed calendar check conclude today is not a market day
-		return false
-	}
-	if len(calendar) != 1 {
-		log.Errorf("marketHoliday returned an calendar list of len %d, assuming market open at standard hours", len(calendar))
-		return false
-	}
-	return today != calendar[0].Date
 }
 
 func setup() setupOutput {
@@ -400,25 +414,28 @@ func setup() setupOutput {
 	alpaca.SetBaseUrl(alpacaMarketURL)
 	alpacaCl := alpaca.NewClient(common.Credentials())
 	return setupOutput{
+		httpCl: &http.Client{
+			Timeout: ytReqTimeout,
+		},
 		alpacaCl: alpacaCl,
 	}
 }
 
 func main() {
 	setupOutput := setup()
-	if marketHoliday(setupOutput.alpacaCl) {
+	if marketHoliday(setupOutput.alpacaCl) && !ignoreMarketHours {
 		log.Infof("The time is %v and it is a market holiday, shutting down", time.Now())
 		os.Exit(0)
 	}
 	log.Info("Setup complete")
 	for true {
-		if PastAH() {
+		if PastAH() && !ignoreMarketHours {
 			log.Infof("The time is %v and markets are closed, shutting down", time.Now().In(nyTimezone))
 			os.Exit(0)
 		}
 
 		tickStart := time.Now()
-		err := Tick(setupOutput.alpacaCl)
+		err := Tick(setupOutput.httpCl, setupOutput.alpacaCl)
 		if err != nil {
 			if err == ErrInsufficientFunds {
 			} else {
@@ -437,4 +454,16 @@ func main() {
 			minZero(int(tickDuration-time.Since(tickStart).Milliseconds())))
 		time.Sleep(sleepDuration)
 	}
+}
+
+// goodTransationCheck checks if the transaction was computed too late to achieve ROI
+func goodTransactionCheck(alpacaCl *alpaca.Client, action *ActionProfile) bool {
+	/*
+		barParams := alpaca.ListBarParams{
+			Timeframe: "1Min",
+			EndDt:     time.Now(),
+		}
+		bars, err := alpacaCl.GetSymbolBars(action.ticker, barParams)
+	*/
+	return true
 }
