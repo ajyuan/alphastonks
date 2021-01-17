@@ -2,20 +2,13 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
-	"math"
 	"math/rand"
 	"net/http"
 	"os"
-	"strconv"
-	"strings"
 	"time"
-	"unicode"
 
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	"github.com/alpacahq/alpaca-trade-api-go/common"
-	"github.com/grassmudhorses/vader-go"
-	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 )
 
@@ -78,61 +71,11 @@ type setupOutput struct {
 	alpacaCl *alpaca.Client
 }
 
-// YTPostDetails contains details about a post required to make an action on it
-type YTPostDetails struct {
-	postTime string
-	postText string
-}
-
 // ActionProfile contains info to execute a market operation on a stock
 type ActionProfile struct {
 	ticker     string
 	action     uint
 	multiplier int32
-}
-
-func timer() func() {
-	start := time.Now()
-	return func() {
-		log.Infof("Iteration completed in %v", time.Since(start))
-	}
-}
-
-func stringIn(list []string, a string) bool {
-	for _, b := range list {
-		if b == a {
-			return true
-		}
-	}
-	return false
-}
-
-func roundPriceDown(value float32) float64 {
-	return math.Floor(float64(value*100)) / 100
-}
-
-func substrPrefSuf(page, prefix, suffix string) (string, error) {
-	si, n, ei := strings.Index(page, prefix)+len(prefix), len(suffix), -1
-	if si == -1 {
-		return "", fmt.Errorf("extractPosts failed to find data prefix \"%s\"", postTextPrefix)
-	}
-	for i := si + 1; i < len(page)-n; i++ {
-		if page[i:i+n] == suffix {
-			ei = i
-			break
-		}
-	}
-	if ei == -1 {
-		return "", fmt.Errorf("extractPosts failed to find data suffix \"%s\"", suffix)
-	}
-	return page[si:ei], nil
-}
-
-func minZero(a int) int {
-	if a < 0 {
-		return 0
-	}
-	return a
 }
 
 // IsAH determines if the current time is within the after-hours trading window
@@ -166,237 +109,7 @@ func marketHoliday(alpacaCl *alpaca.Client) bool {
 	return today != calendar[0].Date
 }
 
-func communityPage(cl *http.Client, target string) (string, error) {
-	req, err := http.NewRequest("GET", target, nil)
-	if err != nil {
-		return "", fmt.Errorf("fetchPage failed to form request: %v", err)
-	}
-	req.Header.Set("Cookie", cookieData)
-	resp, err := cl.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("fetchPage failed to request page: %v", err)
-	}
-	page, err := ioutil.ReadAll(resp.Body)
-	f, _ := os.Create("com-page.html")
-	defer f.Close()
-	f.Write(page)
-	return string(page), err
-}
-
-// resolveTickers resolves tickers if multiple candidates are found
-func resolveTickers(tickers []string) (string, error) {
-	//TODO: Implement ticker resolution
-	return "", fmt.Errorf("resolveTickers found multiple possible tickers: %v", tickers)
-}
-
-// Ticker retrieves the ticker being discussed in a current post
-func Ticker(postText string) (string, error) {
-	words := strings.Fields(postText)
-	tickers := []string{}
-	var skipWord bool
-	for _, word := range words {
-		if string(word[0]) == "$" {
-			word = word[1:]
-		}
-		if !unicode.IsLetter(rune(word[len(word)-1])) {
-			word = word[:len(word)-1]
-		}
-		if len(word) > 5 {
-			continue
-		}
-		if stringIn(tickerFalsePositives, word) {
-			continue
-		}
-		for _, char := range word {
-			if !unicode.IsUpper(char) || !unicode.IsLetter(char) {
-				skipWord = true
-				continue
-			}
-		}
-		if !skipWord && len(word) != 0 && !stringIn(tickers, word) {
-			tickers = append(tickers, word)
-			continue
-		}
-		skipWord = false
-	}
-	if len(tickers) == 1 {
-		return tickers[0], nil
-	}
-	return resolveTickers(tickers)
-}
-
-// Recommendation populates a stock profile with a recommendation
-func Recommendation(profile *ActionProfile, postText string) {
-	score := vader.GetSentiment(postText)
-	//fmt.Printf("Ticker: %s\nText: %s\nPositivity: %f\nNegativity: %f\nNeutral: %f\nCompound: %f\n\n", profile.ticker, postText, score.Positive, score.Negative, score.Neutral, score.Compound)
-	if score.Compound > buyHighConfidence {
-		profile.action = actionBuy
-		profile.multiplier = highBuyMult
-	} else if score.Compound > buyMedConfidence {
-		profile.action = actionBuy
-		profile.multiplier = medBuyMult
-	} else if score.Compound > buyLowConfidence {
-		profile.action = actionBuy
-		profile.multiplier = lowBuyMult
-	} else if score.Compound < sellHighConfidence {
-		profile.action = actionSell
-		profile.multiplier = highSellMult
-	}
-}
-
-// discoveredWithinBounds determines if the current time is within execution time parameters
-func discoveredWithinBounds(ytTimeString string) bool {
-	if ytTimeString[1:8] == " second" {
-		age, err := strconv.Atoi(string(ytTimeString[0]))
-		if err != nil {
-			log.Errorf("Unknown time %s", ytTimeString)
-		}
-		if age <= 2 {
-			return true
-		}
-	}
-	for _, filterWord := range actionExecutableTimeFilter {
-		if strings.Contains(ytTimeString, filterWord) {
-			return false
-		}
-	}
-	log.Errorf("Unknown time %s", ytTimeString)
-	return false
-}
-
-// actionPrice estimates an upper limit price that the order should be filled by
-func actionPrice(alpacaCl *alpaca.Client, action *ActionProfile) (float64, error) {
-	resp, err := alpacaCl.GetLastQuote(action.ticker)
-	if err != nil {
-		return 0, fmt.Errorf("actionPrice failed to retrieve last quote for ticker %s: %v", action.ticker, err)
-	}
-	lastPrice := resp.Last.AskPrice
-	if lastPrice <= 25 {
-		return roundPriceDown(lastPrice * 1.1), nil
-	} else if lastPrice <= 50 {
-		return roundPriceDown(lastPrice * 1.05), nil
-	}
-	return roundPriceDown(lastPrice * 1.03), nil
-}
-
-// actionValue computes the price and quantity for an action
-// DO NOT USE FOR SELL ORDERS
-func actionValue(alpacaCl *alpaca.Client, req *alpaca.PlaceOrderRequest, action *ActionProfile) error {
-	acct, err := alpacaCl.GetAccount()
-	if err != nil {
-		return fmt.Errorf("actionQty failed to retrieve account details: %v", err)
-	}
-	orderPriceFloat, err := actionPrice(alpacaCl, action)
-	if err != nil {
-		return err
-	}
-	orderLimitPrice := decimal.NewFromFloat(orderPriceFloat)
-	req.LimitPrice = &orderLimitPrice
-	maxBuyableShares := acct.BuyingPower.Div(orderLimitPrice).Sub(decimal.NewFromFloat32(0.5))
-	req.Qty = maxBuyableShares.Div(decimal.NewFromInt32(action.multiplier)).Round(0)
-	return nil
-}
-
-// orderRequest generates the order request to be executed by Alpaca
-func orderRequest(alpacaCl *alpaca.Client, action *ActionProfile) (*alpaca.PlaceOrderRequest, error) {
-	req := alpaca.PlaceOrderRequest{
-		AssetKey:    &action.ticker,
-		Type:        alpaca.Limit,
-		TimeInForce: alpaca.Day,
-	}
-	if action.action == actionBuy {
-		req.Side = alpaca.Buy
-	} else {
-		req.Side = alpaca.Sell
-	}
-	err := actionValue(alpacaCl, &req, action)
-	if err != nil {
-		return nil, err
-	}
-	return &req, nil
-}
-
-// YTPost extracts information about the latest post from YT
-func YTPost(cl *http.Client) (*YTPostDetails, error) {
-	page, err := communityPage(cl, ytTarget)
-	if err != nil {
-		return nil, err
-	}
-	postText, err := substrPrefSuf(page, postTextPrefix, postTextSuffix)
-	if err != nil {
-		return nil, err
-	}
-	postTime, err := substrPrefSuf(page, postTimePrefix, postTimeSuffix)
-	if err != nil {
-		return nil, err
-	}
-	return &YTPostDetails{
-		postText: postText,
-		postTime: postTime,
-	}, nil
-}
-
-// Action checks the YT feed, analyze new posts, recommend action
-// Dependencies: YouTube
-func Action(post *YTPostDetails) (*ActionProfile, error) {
-	if (!discoveredWithinBounds(post.postTime) || post.postText == "") && !ignorePostAge {
-		log.Debugf("Last post was created at time %s, too late to be actionable. Skipping.", post.postTime)
-		return &ActionProfile{}, nil
-	}
-	ticker, err := Ticker(post.postText)
-	if err != nil {
-		// TODO: Better ticker error handling
-		return &ActionProfile{}, nil
-	}
-	profile := &ActionProfile{ticker: ticker}
-	Recommendation(profile, post.postText)
-	return profile, err
-}
-
-// Execute executes an action profile
-// Dependencies: AlpacaAPI
-func Execute(action *ActionProfile, alpacaCl *alpaca.Client) error {
-	if action.action == actionNoOp {
-		return nil
-	}
-	req, err := orderRequest(alpacaCl, action)
-	if err != nil {
-		return err
-	}
-	if req.Qty.Equal(decimal.Zero) {
-		log.Infof("Insufficient funds to %s %s %v@%v", req.Side, *req.AssetKey, req.Qty, req.LimitPrice)
-		return ErrInsufficientFunds
-	}
-	order, err := alpacaCl.PlaceOrder(*req)
-	if err != nil {
-		return fmt.Errorf("Execute failed to execute order %v: %v", *req, err)
-	}
-	log.Infof("Order Placed: %v", order)
-	time.Sleep(orderTimeInForce)
-	alpacaCl.CancelOrder(order.ID)
-	return nil
-}
-
-// Tick performs all steps to do one iteration of the check & buy algo
-func Tick(cl *http.Client, alpacaCl *alpaca.Client) error {
-	// defer timer()()
-	post, err := YTPost(cl)
-	if err != nil {
-		return err
-	}
-	action, err := Action(post)
-	if err != nil {
-		return err
-	}
-	err = Execute(action, alpacaCl)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func setup() setupOutput {
-	log.Infof("AlphaStonks v.%s", "1.04")
 	log.SetLevel(logrus.DebugLevel)
 	rand.Seed(time.Now().UnixNano())
 	log.Debug("Establishing NY Time Offset")
@@ -422,7 +135,26 @@ func setup() setupOutput {
 	}
 }
 
+// Tick performs all steps to do one iteration of the check & buy algo
+func Tick(cl *http.Client, alpacaCl *alpaca.Client) error {
+	// defer timer()()
+	post, err := YTPost(cl)
+	if err != nil {
+		return err
+	}
+	action, err := Action(post)
+	if err != nil {
+		return err
+	}
+	err = Execute(action, alpacaCl)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func main() {
+	log.Infof("AlphaStonks v.%s", "1.05")
 	setupOutput := setup()
 	if marketHoliday(setupOutput.alpacaCl) && !ignoreMarketHours {
 		log.Infof("The time is %v and it is a market holiday, shutting down", time.Now())
@@ -455,16 +187,4 @@ func main() {
 			minZero(int(tickDuration-time.Since(tickStart).Milliseconds())))
 		time.Sleep(sleepDuration)
 	}
-}
-
-// goodTransationCheck checks if the transaction was computed too late to achieve ROI
-func goodTransactionCheck(alpacaCl *alpaca.Client, action *ActionProfile) bool {
-	/*
-		barParams := alpaca.ListBarParams{
-			Timeframe: "1Min",
-			EndDt:     time.Now(),
-		}
-		bars, err := alpacaCl.GetSymbolBars(action.ticker, barParams)
-	*/
-	return true
 }
