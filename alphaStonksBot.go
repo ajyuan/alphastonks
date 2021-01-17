@@ -21,9 +21,7 @@ import (
 
 const (
 	// Base clock speed: 1 tick per tickDuration in milliseconds
-	tickDuration = 350
-	// Randomize additional sleep from 0 to this val in milliseconds
-	sleepRandRange = 512
+	tickDuration = 512
 
 	// Community page parsing vars
 	ytTarget       = "https://www.youtube.com/c/Deadnsyde/community"
@@ -60,13 +58,19 @@ var (
 
 	// String filters
 	actionExecutableTimeFilter = []string{"hour", "day", "minute", "week", "month", "year"}
-	tickerFalsePositives       = []string{"I", "A", "ET", "DD", "CEO", "NOT", "USD", "VERY", "SUPER"}
+	tickerFalsePositives       = []string{"I", "A", "ET", "DD", "DM", "CEO", "NOT", "USD", "VERY", "SUPER", "REALLY"}
 
 	// Time Config
 	nyTimezone *time.Location
 
+	orderTimeInForce = time.Second * 8
+
 	log = logrus.New()
 )
+
+type setupOutput struct {
+	alpacaCl *alpaca.Client
+}
 
 // ActionProfile contains info to execute a market operation on a stock
 type ActionProfile struct {
@@ -213,8 +217,8 @@ func Recommendation(profile *ActionProfile, postText string) {
 	}
 }
 
-// actionExecutableTime determines if the current time is within execution time parameters
-func actionExecutableTime(ytTimeString string) bool {
+// discoveredWithinBounds determines if the current time is within execution time parameters
+func discoveredWithinBounds(ytTimeString string) bool {
 	if ytTimeString[1:8] == " second" {
 		age, err := strconv.Atoi(string(ytTimeString[0]))
 		if err != nil {
@@ -246,7 +250,7 @@ func Action() (*ActionProfile, error) {
 		return nil, err
 	}
 	postTime, err := substrPrefSuf(page, postTimePrefix, postTimeSuffix)
-	if !actionExecutableTime(postTime) || postText == "" {
+	if !discoveredWithinBounds(postTime) || postText == "" {
 		return &ActionProfile{}, nil
 	}
 	ticker, err := Ticker(postText)
@@ -299,8 +303,8 @@ func actionValue(alpacaCl *alpaca.Client, req *alpaca.PlaceOrderRequest, action 
 	}
 	orderLimitPrice := decimal.NewFromFloat(orderPriceFloat)
 	req.LimitPrice = &orderLimitPrice
-	maxBuyableShares := acct.BuyingPower.Div(orderLimitPrice).Sub(decimal.NewFromFloat32(0.5)).Round(0)
-	req.Qty = maxBuyableShares.Div(decimal.NewFromInt32(action.multiplier))
+	maxBuyableShares := acct.BuyingPower.Div(orderLimitPrice).Sub(decimal.NewFromFloat32(0.5))
+	req.Qty = maxBuyableShares.Div(decimal.NewFromInt32(action.multiplier)).Round(0)
 	return nil
 }
 
@@ -325,11 +329,10 @@ func orderRequest(alpacaCl *alpaca.Client, action *ActionProfile) (*alpaca.Place
 
 // Execute executes an action profile
 // Dependencies: AlpacaAPI
-func Execute(action *ActionProfile) error {
+func Execute(action *ActionProfile, alpacaCl *alpaca.Client) error {
 	if action.action == actionNoOp {
 		return nil
 	}
-	alpacaCl := alpaca.NewClient(common.Credentials())
 	req, err := orderRequest(alpacaCl, action)
 	if err != nil {
 		return err
@@ -340,28 +343,45 @@ func Execute(action *ActionProfile) error {
 	}
 	order, err := alpacaCl.PlaceOrder(*req)
 	if err != nil {
-		return fmt.Errorf("Execute failed to execute order %v: %v", req, err)
+		return fmt.Errorf("Execute failed to execute order %v: %v", *req, err)
 	}
-	fmt.Printf("Order Placed: %v", order)
+	log.Infof("Order Placed: %v", order)
+	time.Sleep(orderTimeInForce)
+	alpacaCl.CancelOrder(order.ID)
 	return nil
 }
 
 // Tick performs one check and potential buy
-func Tick() error {
+func Tick(alpacaCl *alpaca.Client) error {
 	// defer timer()()
 	action, err := Action()
 	if err != nil {
 		return err
 	}
-	err = Execute(action)
+	err = Execute(action, alpacaCl)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func setup() {
-	log.Infof("AlphaStonks v.%s", "1.03")
+func marketHoliday(alpacaCl *alpaca.Client) bool {
+	today := time.Now().Format("2006-01-02")
+	calendar, err := alpacaCl.GetCalendar(&today, &today)
+	if err != nil {
+		log.Errorf("marketHoliday error occurred when retrieving calendar: %v", err)
+		// Don't let a failed calendar check conclude today is not a market day
+		return false
+	}
+	if len(calendar) != 1 {
+		log.Errorf("marketHoliday returned an calendar list of len %d, assuming market open at standard hours", len(calendar))
+		return false
+	}
+	return today != calendar[0].Date
+}
+
+func setup() setupOutput {
+	log.Infof("AlphaStonks v.%s", "1.04")
 	log.SetLevel(logrus.DebugLevel)
 	rand.Seed(time.Now().UnixNano())
 	log.Debug("Establishing NY Time Offset")
@@ -378,11 +398,19 @@ func setup() {
 		os.Setenv(common.EnvApiSecretKey, alpacaSecret)
 	}
 	alpaca.SetBaseUrl(alpacaMarketURL)
-	log.Info("Setup complete, beginning monitoring")
+	alpacaCl := alpaca.NewClient(common.Credentials())
+	return setupOutput{
+		alpacaCl: alpacaCl,
+	}
 }
 
 func main() {
-	setup()
+	setupOutput := setup()
+	if marketHoliday(setupOutput.alpacaCl) {
+		log.Infof("The time is %v and it is a market holiday, shutting down", time.Now())
+		os.Exit(0)
+	}
+	log.Info("Setup complete")
 	for true {
 		if PastAH() {
 			log.Infof("The time is %v and markets are closed, shutting down", time.Now().In(nyTimezone))
@@ -390,7 +418,7 @@ func main() {
 		}
 
 		tickStart := time.Now()
-		err := Tick()
+		err := Tick(setupOutput.alpacaCl)
 		if err != nil {
 			if err == ErrInsufficientFunds {
 			} else {
@@ -401,8 +429,12 @@ func main() {
 		if time.Since(tickStart) > time.Second*3 {
 			log.Warnf("Thottling detected, last request took %v", time.Since(tickStart))
 		}
+		/* Removed random timeout
 		sleepDuration := time.Millisecond * time.Duration(
 			minZero(int(tickDuration-time.Since(tickStart).Milliseconds())+rand.Intn(sleepRandRange)))
+		*/
+		sleepDuration := time.Millisecond * time.Duration(
+			minZero(int(tickDuration-time.Since(tickStart).Milliseconds())))
 		time.Sleep(sleepDuration)
 	}
 }
