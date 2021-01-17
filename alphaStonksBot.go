@@ -21,8 +21,9 @@ import (
 
 const (
 	// Testing vars
-	ignoreMarketHours = true
-	ignorePostAge     = true
+	// SET TO FALSE BEFORE PUSHING
+	ignoreMarketHours = false
+	ignorePostAge     = false
 
 	// Base clock speed: 1 tick per tickDuration in milliseconds
 	tickDuration = 512
@@ -376,7 +377,7 @@ func Execute(action *ActionProfile, alpacaCl *alpaca.Client) error {
 	return nil
 }
 
-// Tick performs one check and potential buy
+// Tick performs all steps to do one iteration of the check & buy algo
 func Tick(cl *http.Client, alpacaCl *alpaca.Client) error {
 	// defer timer()()
 	post, err := YTPost(cl)
