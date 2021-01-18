@@ -30,13 +30,13 @@ const (
 	postTimeSuffix = "\","
 
 	// Modifiers
-	buyLowConfidence   = 0.15
+	buyLowConfidence   = 0.13
 	buyMedConfidence   = 0.6
-	buyHighConfidence  = 0.85
+	buyHighConfidence  = 0.15
 	sellHighConfidence = -0.8
-	lowBuyMult         = 10
-	medBuyMult         = 5
-	highBuyMult        = 1
+	lowBuyMult         = 0.65
+	medBuyMult         = 5.0
+	highBuyMult        = 1.0
 	highSellMult       = 100
 
 	// Actions
@@ -69,13 +69,6 @@ var (
 type setupOutput struct {
 	httpCl   *http.Client
 	alpacaCl *alpaca.Client
-}
-
-// ActionProfile contains info to execute a market operation on a stock
-type ActionProfile struct {
-	ticker     string
-	action     uint
-	multiplier int32
 }
 
 // IsAH determines if the current time is within the after-hours trading window
@@ -142,10 +135,7 @@ func Tick(cl *http.Client, alpacaCl *alpaca.Client) error {
 	if err != nil {
 		return err
 	}
-	action, err := Action(post)
-	if err != nil {
-		return err
-	}
+	action := Recommendation(post)
 	err = Execute(action, alpacaCl)
 	if err != nil {
 		return err
@@ -154,7 +144,7 @@ func Tick(cl *http.Client, alpacaCl *alpaca.Client) error {
 }
 
 func main() {
-	log.Infof("AlphaStonks v.%s", "1.05")
+	log.Infof("AlphaStonks v.%s", "1.06")
 	setupOutput := setup()
 	if marketHoliday(setupOutput.alpacaCl) && !ignoreMarketHours {
 		log.Infof("The time is %v and it is a market holiday, shutting down", time.Now())

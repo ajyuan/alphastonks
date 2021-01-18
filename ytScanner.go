@@ -5,12 +5,18 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 )
 
 // YTPostDetails contains details about a post required to make an action on it
 type YTPostDetails struct {
 	postTime string
 	postText string
+}
+
+func cleanHTMLString(postText string) string {
+	postText = strings.ReplaceAll(postText, "\\r\\n", "")
+	return strings.ReplaceAll(postText, "\\u0026", "and")
 }
 
 func communityPage(cl *http.Client, target string) (string, error) {
@@ -40,6 +46,7 @@ func YTPost(cl *http.Client) (*YTPostDetails, error) {
 	if err != nil {
 		return nil, err
 	}
+	postText = cleanHTMLString(postText)
 	postTime, err := substrPrefSuf(page, postTimePrefix, postTimeSuffix)
 	if err != nil {
 		return nil, err

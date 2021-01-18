@@ -4,6 +4,7 @@ import (
 	"testing"
 )
 
+/*
 func TestTicker(t *testing.T) {
 	tests := map[string]struct {
 		input          string
@@ -74,12 +75,12 @@ func TestTicker(t *testing.T) {
 		}
 	}
 }
-
+*/
 func TestRecommendation(t *testing.T) {
 	tests := map[string]struct {
 		input              string
 		expectedAction     uint
-		expectedMultiplier int32
+		expectedMultiplier float32
 	}{
 		"CRNT Buy": {
 			input:              "New penny stock that I am currently interested in (& invested in) is CRNT (Ceragon Networks).  Ark Invest recently purchased over 150k more shares of this penny stock from 1/11 - 1/14 (i took a picture for proof and will compare Cathie Wood's portfolios in the video).  This is a 5G play which is 1 of the biggest growth sectors but what made me really excited about this stock is that Huawei is getting banned in many countries + companies don't want to work with them because of their reputation of stealing.  CRNT said they feel like they're in a good position to take market share from Huawei (I will show all of their statements in the video that I plan on releasing sometime next week). Needham upgraded CRNT and gave it a buy rating after their presentation at its growth conference yesterday giving me more confidence in this company. If you want to help me with my DD in this company, please feel free to add notes in this comment section or my subreddit (trakstocks).  I will try to go over this briefly on Sunday and then do a full video sometime next week (maybe Monday but not positive)",
@@ -90,13 +91,14 @@ func TestRecommendation(t *testing.T) {
 			input:              "Hey, I just invested in the penny stock CPSH.  I will be doing a video tomorrow on this stock.  I believe this company can do well because their products are revolving around hybrid / electric vehicles, aerospace, wind turbines / clean energy.  The reason why I think this won't be a penny stock for long is because of the role they play in the clean energy sector.  Also the space industry is growing and experts believe the space industry will triple to 1.4 trillion within a decade.  Yesterday on Reddit's home page, they were showing Nasa's new Mars rover (Perseverance Rover) and how it's about to land on mars on Feb. 18th.  Nasa is using CPSH's product in that rover.  Last quarter they were net profitable for their operations and with them playing an important role in the green energy / ev sector, I think this might be the beginning of something great for this company.",
 			expectedAction:     actionBuy,
 			expectedMultiplier: highBuyMult,
-		}, "MP Buy/NoOp": {
-			input:          "hey, planning on doing a video on MP tomorrow.  Might be Wednesday latest but shooting for Tuesday.  I think they're going to do well in upcoming earnings and I feel like I can come pretty close to proving it. I could always be wrong so when you watch the video, if you think I am \"seeing what I want to see\" just ignore it but with Biden + what they're already doing, i think they're going to do well.  PLEASE tell me what you don't like with MP and i will try to address it but watch the video I attached where I addressed common concerns with the company.",
-			expectedAction: actionNoOp,
+		}, "MP Buy": {
+			input:              "hey, planning on doing a video on MP tomorrow.  Might be Wednesday latest but shooting for Tuesday.  I think they're going to do well in upcoming earnings and I feel like I can come pretty close to proving it. I could always be wrong so when you watch the video, if you think I am \"seeing what I want to see\" just ignore it but with Biden + what they're already doing, i think they're going to do well.  PLEASE tell me what you don't like with MP and i will try to address it but watch the video I attached where I addressed common concerns with the company.",
+			expectedAction:     actionBuy,
+			expectedMultiplier: highBuyMult,
 		}, "STPKK Buy": {
 			input:              "Hey, STPK I am hearing great things about.  I am working on a video but don't know when it will be done.  I am hearing a lot about how this might do really well under Biden.  If you have any concerns about this company please leave it down below so I can try to address them in the video.",
 			expectedAction:     actionBuy,
-			expectedMultiplier: medBuyMult,
+			expectedMultiplier: highBuyMult,
 		}, "BNGO NoOp": {
 			input:          "PLEASE do your research because I dont want this BNGO to hit $20 because I am missing something!  With that being said, I just got off the phone and am less bullish with BNGO.  VERY hard subject to tackle so please do your research carefully, Jan 11th - 15th could still be a catalyst.  From my understanding there is 2 ways to look at this stock, from a \"clinical market\" side and as a \"research market\" side.  Clinical market has more of a TAM then Research Market (it's a night and day difference apparently).  I am under the impression BNGO currently can only address a very small part of \"clinical market\" and more so a \"research market\" company.",
 			expectedAction: actionNoOp,
@@ -110,12 +112,12 @@ func TestRecommendation(t *testing.T) {
 		}, "BNGO Med Buy": {
 			input:              "I talked about PACB on youtube when it was $6 (now $24) because of Ark putting them on my radar.  While BNGO is still at $1, pls read this study to determine if you think BNGO is better than PACB.  Trying my best to not influence your decision lol.  Maybe I am reading this wrong, but it seems like BNGO is better in a couple ways. https://apnews.com/press-release/glob...",
 			expectedAction:     actionBuy,
-			expectedMultiplier: medBuyMult,
-		}, "FRSX Buy": {
+			expectedMultiplier: lowBuyMult,
+		}, "FRSX High Buy": {
 			input:              "Just purchased the penny stock FRSX.  I covered them before but after apple \"icar\" news I have invested heavily.  Will try to post video in a few hours.  Not saying they will work with apple, just noticing growing interest in this sector and this stock seems to be the last \"autonomous driving related\" related stock left and it's under $3 a share.  They are getting more and more opportunities, expecting a grant of approximately one million USD from the European Commission, won Edison award (something Elon Musk won a while back), a COVID-19 Symptom Detection play, and will cover more in video.",
 			expectedAction:     actionBuy,
 			expectedMultiplier: highBuyMult,
-		}, "IMMR Buy": {
+		}, "IMMR Low/High Buy": {
 			input:              "Hey, currently I am not invested in this but working on a video about IMMR.  They could do well soon.  Gathering up a lot of interesting information about this company on why it might be a good stock to invest in but will not get the video done until maybe next week.  I think it's def worth it for you to look closely at this company.  If you look at it closely and do NOT like it, please leave reasons why so we can see : )",
 			expectedAction:     actionBuy,
 			expectedMultiplier: highBuyMult,
@@ -131,20 +133,24 @@ func TestRecommendation(t *testing.T) {
 			input:              "Sorry for the repetitive videos about FEAC but after looking even closer at the company, I am even more bullish on this one.  99% positive this stock will double (not sure when but confident it will eventually,.  It has ran up recently so could be a pull back).  I will do a video today about more reasons why because of new things I discovered.  I have been trying to identify every negative thing with the company in the past 2 videos and the biggest negative catalyst I can imagine is some regulation law comes into place banning this \"skills based\" gambling.  Also I believe App store is going from 30% fee to 15% fee on in app purchases (which is better than before but I dont like how apple has so much control).  Not 100% sure this effects skillz (i am pretending that it does) but if apple raises the price again, could be another negative catalyst potentially.  Other than that, I am struggling to find more problems with the company.  Bullish and this is a long term play.  So far REALLY liking this ceo too.  Seems focused and what he says makes sense to me.",
 			expectedAction:     actionBuy,
 			expectedMultiplier: highBuyMult,
-		}, "NNOX Buy": {
+		}, "NNOX Buy/NoOp": {
 			input:              "Just bought more NNOX (like.. a lot more).  If it fails at live demonstration (which is tomorrow), stock will drop VERY hard so big risk.  Big catalyst tomorrow (maybe positive maybe negative).  This isn't like some drug trial btw lol.  This is like, turning on a machine... im sure they've been doing this every day this month to be prepared.",
 			expectedAction:     actionBuy,
-			expectedMultiplier: medBuyMult,
+			expectedMultiplier: lowBuyMult,
 		},
 	}
 
 	for name, test := range tests {
-		testActionProfile := &ActionProfile{}
-		Recommendation(testActionProfile, test.input)
-		if testActionProfile.action != test.expectedAction {
-			t.Errorf("test \"%s\" failed: expected action %d, got %d", name, test.expectedAction, testActionProfile.action)
-		} else if testActionProfile.multiplier != test.expectedMultiplier {
-			t.Errorf("test \"%s\" failed: expected multiplier %d, got %d", name, test.expectedMultiplier, testActionProfile.multiplier)
+		testPost := &YTPostDetails{
+			postText: test.input,
+			postTime: "1 second ago",
 		}
+		actionProfile := Recommendation(testPost)
+		if actionProfile.action != test.expectedAction {
+			t.Errorf("test \"%s\" failed: expected action %d, got %d", name, test.expectedAction, actionProfile.action)
+		} else if actionProfile.multiplier != test.expectedMultiplier {
+			t.Errorf("test \"%s\" failed: expected multiplier %f, got %f", name, test.expectedMultiplier, actionProfile.multiplier)
+		}
+
 	}
 }

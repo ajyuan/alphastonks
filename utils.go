@@ -14,6 +14,15 @@ func timer() func() {
 	}
 }
 
+func intIn(list []int, a int) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
+}
+
 func stringIn(list []string, a string) bool {
 	for _, b := range list {
 		if b == a {

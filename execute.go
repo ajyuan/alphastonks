@@ -2,33 +2,11 @@ package main
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
 	"github.com/shopspring/decimal"
 )
-
-// discoveredWithinBounds determines if the current time is within execution time parameters
-func discoveredWithinBounds(ytTimeString string) bool {
-	if ytTimeString[1:8] == " second" {
-		age, err := strconv.Atoi(string(ytTimeString[0]))
-		if err != nil {
-			log.Errorf("Unknown time %s", ytTimeString)
-		}
-		if age <= 2 {
-			return true
-		}
-	}
-	for _, filterWord := range actionExecutableTimeFilter {
-		if strings.Contains(ytTimeString, filterWord) {
-			return false
-		}
-	}
-	log.Errorf("Unknown time %s", ytTimeString)
-	return false
-}
 
 // actionPrice estimates an upper limit price that the order should be filled by
 func actionPrice(alpacaCl *alpaca.Client, action *ActionProfile) (float64, error) {
@@ -59,7 +37,7 @@ func actionValue(alpacaCl *alpaca.Client, req *alpaca.PlaceOrderRequest, action 
 	orderLimitPrice := decimal.NewFromFloat(orderPriceFloat)
 	req.LimitPrice = &orderLimitPrice
 	maxBuyableShares := acct.BuyingPower.Div(orderLimitPrice).Sub(decimal.NewFromFloat32(0.5))
-	req.Qty = maxBuyableShares.Div(decimal.NewFromInt32(action.multiplier)).Round(0)
+	req.Qty = maxBuyableShares.Div(decimal.NewFromFloat32(action.multiplier)).Round(0)
 	return nil
 }
 
