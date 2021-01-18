@@ -8,6 +8,17 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// IsAH determines if the current time is within the after-hours trading window
+func IsAH() bool {
+	currHour := time.Now().In(nyTimezone).Hour()
+	if currHour >= 16 && currHour < 18 {
+		return true
+	} else if currHour == 9 && (time.Now().In(nyTimezone).Minute() < 30) {
+		return true
+	}
+	return false
+}
+
 // actionPrice estimates an upper limit price that the order should be filled by
 func actionPrice(alpacaCl *alpaca.Client, action *ActionProfile) (float64, error) {
 	resp, err := alpacaCl.GetLastQuote(action.ticker)

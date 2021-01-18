@@ -47,17 +47,22 @@ func discoveredWithinBounds(ytTimeString string) bool {
 	return false
 }
 
-// isTickerBasic returns if a string is a ticker
-func isTickerBasic(word string) bool {
+// cleanTicker attempts to remove noise from a word to resolve to a ticker
+func cleanTicker(word string) string {
 	if string(word[0]) == "$" {
 		word = word[1:]
 	}
 	if len(word) == 0 {
-		return false
+		return ""
 	}
 	if !unicode.IsLetter(rune(word[len(word)-1])) {
 		word = word[:len(word)-1]
 	}
+	return word
+}
+
+// isTickerBasic returns if a string is a ticker
+func isTickerBasic(word string) bool {
 	if len(word) > 5 || len(word) == 0 || !isUpper(word) {
 		return false
 	}
@@ -78,7 +83,7 @@ func nerTickersIdx(postText string, tickerIdxs map[string][]int) (map[string][]i
 	}
 	nerTickerIdxs := map[string][]int{}
 	gpeFound := false
-	for _, ent := range doc.Entities() {
+	for _, ent := range nerEntities {
 		if ent.Label == "GPE" {
 			if idxs, ok := tickerIdxs[ent.Text]; ok {
 				nerTickerIdxs[ent.Text] = idxs
@@ -87,13 +92,19 @@ func nerTickersIdx(postText string, tickerIdxs map[string][]int) (map[string][]i
 		}
 	}
 	if gpeFound {
+		log.Infof("nerTickersIdx resolved via GPE entities, %v tickers selected", nerTickerIdxs)
 		return nerTickerIdxs, nil
 	}
-	for _, ent := range doc.Entities() {
+	for _, ent := range nerEntities {
 		if idxs, ok := tickerIdxs[ent.Text]; ok {
 			nerTickerIdxs[ent.Text] = idxs
 		}
 	}
+	if len(nerTickerIdxs) == 0 {
+		log.Warnf("nerTickersIdx failed to detect matching entities, returning main ticker list")
+		return tickerIdxs, nil
+	}
+	log.Infof("nerTickersIdx resolved via PERSON entities, %v tickers selected", nerTickerIdxs)
 	return nerTickerIdxs, nil
 }
 
@@ -107,9 +118,17 @@ func tickerIdxs(postText string, lines []string) map[string][]int {
 			if len(word) == 0 {
 				continue
 			}
+			if _, ok := abortKeywords[word]; ok {
+				log.Warnf("tickerIdxs found abort keyword %s! Ignoring post.", word)
+			}
+			word = cleanTicker(word)
+			if len(word) == 0 {
+				continue
+			}
 			if isTickerBasic(word) {
 				// Throw out line if ticker conflict
 				// TODO: Analyze which ticker is more liked
+				// TODO: Split into 2 action profiles if both liked
 				if currLineTicker != "" {
 					log.Warnf("Ticker conflict for sentence \"line\", candidates: %s and %s", currLineTicker, word)
 					continue
@@ -122,11 +141,12 @@ func tickerIdxs(postText string, lines []string) map[string][]int {
 		}
 	}
 	if len(tickerIdxs) > 1 {
+		log.Infof("tickerIdxs: multiple potential tickers found: %v, attempting to NER resolve", tickerIdxs)
 		nerTickers, err := nerTickersIdx(postText, tickerIdxs)
 		if err != nil {
 			log.Error(err)
 		} else {
-			tickerIdxs = nerTickers
+			return nerTickers
 		}
 	}
 	return tickerIdxs
@@ -137,6 +157,10 @@ func actionProfile(postText string) *ActionProfile {
 	lines := strings.Split(postText, ". ")
 	tickerIdxs := tickerIdxs(postText, lines)
 	out := ActionProfile{}
+	if len(tickerIdxs) == 0 {
+		log.Info(tickerIdxs)
+		log.Infof("No tickers found, or abort keyword found, in post \"%s\"", postText)
+	}
 
 	var topScore float64
 	for ticker, idxs := range tickerIdxs {

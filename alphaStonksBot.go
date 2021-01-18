@@ -52,7 +52,8 @@ var (
 
 	// String filters
 	actionExecutableTimeFilter = []string{"hour", "day", "minute", "week", "month", "year"}
-	tickerFalsePositives       = map[string]struct{}{"I": {}, "A": {}, "ET": {}, "DD": {}, "DM": {}, "ARK": {}, "CEO": {}, "ETF": {}, "IMO": {}, "NOT": {}, "USA": {}, "USD": {}, "LONG": {}, "VERY": {}, "SHORT": {}, "SUPER": {}, "REALLY": {}}
+	tickerFalsePositives       = map[string]struct{}{"I": {}, "A": {}, "ET": {}, "DD": {}, "DM": {}, "ARK": {}, "BUT": {}, "CEO": {}, "ETF": {}, "LOT": {}, "IMO": {}, "NOT": {}, "USA": {}, "USD": {}, "LONG": {}, "VERY": {}, "SHORT": {}, "SUPER": {}, "REALLY": {}}
+	abortKeywords              = map[string]struct{}{"bots": {}, "botting": {}}
 
 	// Time Config
 	nyTimezone       *time.Location
@@ -65,17 +66,6 @@ var (
 type setupOutput struct {
 	httpCl   *http.Client
 	alpacaCl *alpaca.Client
-}
-
-// IsAH determines if the current time is within the after-hours trading window
-func IsAH() bool {
-	currHour := time.Now().In(nyTimezone).Hour()
-	if currHour >= 16 && currHour < 18 {
-		return true
-	} else if currHour == 9 && (time.Now().In(nyTimezone).Minute() < 30) {
-		return true
-	}
-	return false
 }
 
 // PastAH indicates the time is past after-hours trading
@@ -140,7 +130,7 @@ func Tick(cl *http.Client, alpacaCl *alpaca.Client) error {
 }
 
 func main() {
-	log.Infof("AlphaStonks v.%s", "1.07")
+	log.Infof("AlphaStonks v.%s", "1.7.1")
 	setupOutput := setup()
 	if marketHoliday(setupOutput.alpacaCl) && !ignoreMarketHours {
 		log.Infof("Today is a market holiday, shutting down")
