@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/grassmudhorses/vader-go"
+	"github.com/jdkato/prose/v2"
 )
 
 // TickerProfile contains the sentiment for a ticker
@@ -46,31 +47,56 @@ func discoveredWithinBounds(ytTimeString string) bool {
 	return false
 }
 
-// isTicker returns if a string is a ticker
-func isTicker(word string) bool {
+// isTickerBasic returns if a string is a ticker
+func isTickerBasic(word string) bool {
 	if string(word[0]) == "$" {
 		word = word[1:]
 	}
 	if !unicode.IsLetter(rune(word[len(word)-1])) {
 		word = word[:len(word)-1]
 	}
-	if len(word) > 5 || stringIn(tickerFalsePositives, word) {
+	if len(word) > 5 || len(word) == 0 || !isUpper(word) {
 		return false
 	}
-	for _, char := range word {
-		if !unicode.IsUpper(char) || !unicode.IsLetter(char) {
-			return false
-		}
-	}
-	if len(word) == 0 {
+	if _, ok := tickerFalsePositives[word]; ok {
 		return false
 	}
 	return true
 }
 
+func nerTickersIdx(postText string, tickerIdxs map[string][]int) (map[string][]int, error) {
+	doc, err := prose.NewDocument(postText)
+	if err != nil {
+		return nil, err
+	}
+	nerEntities := doc.Entities()
+	if len(nerEntities) == 0 {
+		return tickerIdxs, nil
+	}
+	nerTickerIdxs := map[string][]int{}
+	gpeFound := false
+	for _, ent := range doc.Entities() {
+		if ent.Label == "GPE" {
+			if idxs, ok := tickerIdxs[ent.Text]; ok {
+				nerTickerIdxs[ent.Text] = idxs
+				gpeFound = true
+			}
+		}
+	}
+	if gpeFound {
+		return nerTickerIdxs, nil
+	}
+	for _, ent := range doc.Entities() {
+		if idxs, ok := tickerIdxs[ent.Text]; ok {
+			nerTickerIdxs[ent.Text] = idxs
+		}
+	}
+	return nerTickerIdxs, nil
+}
+
 // tickerIdxs returns a mapping of ticker to indexes where it occurs
-func tickerIdxs(lines []string) map[string][]int {
-	tickerIdx := map[string][]int{}
+func tickerIdxs(postText string, lines []string) map[string][]int {
+	tickerIdxs := map[string][]int{}
 	for i, line := range lines {
 		var currLineTicker string
 		words := strings.Split(line, " ")
@@ -78,7 +104,7 @@ func tickerIdxs(lines []string) map[string][]int {
 			if len(word) == 0 {
 				continue
 			}
-			if isTicker(word) {
+			if isTickerBasic(word) {
 				// Throw out line if ticker conflict
 				// TODO: Analyze which ticker is more liked
 				if currLineTicker != "" {
@@ -89,15 +115,24 @@ func tickerIdxs(lines []string) map[string][]int {
 			}
 		}
 		if currLineTicker != "" {
-			tickerIdx[currLineTicker] = append(tickerIdx[currLineTicker], i)
+			tickerIdxs[currLineTicker] = append(tickerIdxs[currLineTicker], i)
 		}
 	}
-	return tickerIdx
+	if len(tickerIdxs) > 1 {
+		nerTickers, err := nerTickersIdx(postText, tickerIdxs)
+		if err != nil {
+			log.Error(err)
+		} else {
+			tickerIdxs = nerTickers
+		}
+	}
+	return tickerIdxs
 }
 
 // actionProfile returns a mapping of possible tickers to their rated sentiment
-func actionProfile(lines []string) *ActionProfile {
-	tickerIdxs := tickerIdxs(lines)
+func actionProfile(postText string) *ActionProfile {
+	lines := strings.Split(postText, ". ")
+	tickerIdxs := tickerIdxs(postText, lines)
 	out := ActionProfile{}
 
 	var topScore float64
@@ -119,7 +154,8 @@ func actionProfile(lines []string) *ActionProfile {
 		}
 		currScore = currScore / (float64(len(idxs)) + extraLinesRead)
 
-		if currScore >= topScore {
+		if currScore > topScore {
+			// TODO: Mkt cap based tiebreaking for equal score (ex. tickers mentioned once, in same sentence)
 			out.ticker = ticker
 		}
 		actionWeight(&out, currScore)
@@ -145,7 +181,6 @@ func Recommendation(post *YTPostDetails) *ActionProfile {
 		log.Debugf("Last post was created at time %s, too late to be actionable. Skipping.", post.postTime)
 		return &ActionProfile{}
 	}
-	lines := strings.Split(post.postText, ". ")
-	profile := actionProfile(lines)
+	profile := actionProfile(post.postText)
 	return profile
 }

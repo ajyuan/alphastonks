@@ -151,6 +151,42 @@ func TestRecommendation(t *testing.T) {
 		} else if actionProfile.multiplier != test.expectedMultiplier {
 			t.Errorf("test \"%s\" failed: expected multiplier %f, got %f", name, test.expectedMultiplier, actionProfile.multiplier)
 		}
+	}
+}
 
+func TestNerTickers(t *testing.T) {
+	tests := map[string]struct {
+		text               string
+		inputTickerIdxs    map[string][]int
+		expectedTickerIdxs map[string][]int
+	}{
+		"Non-NER Basic": {
+			text:               "PLEASE do your research because I dont want this BNGO to hit $20 because I am missing something!  With that being said, I just got off the phone and am less bullish with BNGO.  VERY hard subject to tackle so please do your research carefully, Jan 11th - 15th could still be a catalyst.  From my understanding there is 2 ways to look at this stock, from a \"clinical market\" side and as a \"research market\" side.  Clinical market has more of a TAM then Research Market (it's a night and day difference apparently).  I am under the impression BNGO currently can only address a very small part of \"clinical market\" and more so a \"research market\" company.",
+			inputTickerIdxs:    map[string][]int{"BNGO": {1}, "PLEASE": {1}},
+			expectedTickerIdxs: map[string][]int{"BNGO": {1}},
+		}, "Has Extra NERs": {
+			text:               "I talked about PACB on youtube when it was $6 (now $24) because of Ark putting them on my radar.  While BNGO is still at $1, pls read this study to determine if you think BNGO is better than PACB.  Trying my best to not influence your decision lol.  Maybe I am reading this wrong, but it seems like BNGO is better in a couple ways. https://apnews.com/press-release/glob...",
+			inputTickerIdxs:    map[string][]int{"BNGO": {1}, "PACB": {2, 3}},
+			expectedTickerIdxs: map[string][]int{"BNGO": {1}, "PACB": {2, 3}},
+		}, "No NERs": {
+			text:               "(in case last link didnt work) Hey, I am getting thousands of messages and DMs of people wanting me to charge more to filter out people so they can get the stock picks first.  I am still going to do the same thing I've been doing for the 99 cent members but $100 members now will have the option to get the updates & stock picks first.  Even if people LEAK the stock picks, it will not run up compared to before because only 13% of my subscribers are paying 99 cents.  So I believe maybe 1% or less will pay the $100... and even if I have a lot of $100 members in the beginning, members who expect cheap stock picks every month will stop paying over time and leave.  The option is now available here https://shorturl.at/gkvHY.  For more details, pls watch the video.  Thank you for all the support and I promise I will try my best to find the most slept on stocks with several reasons on why I like it.",
+			inputTickerIdxs:    map[string][]int{"LOSS": {1}},
+			expectedTickerIdxs: map[string][]int{"LOSS": {1}},
+		},
+	}
+	for name, test := range tests {
+		nerTickersIdx, err := nerTickersIdx(test.text, test.inputTickerIdxs)
+		if err != nil {
+			t.Errorf("test \"%s\" failed: expected no error, got %v", name, err)
+		} else {
+			for ticker, resIdxs := range nerTickersIdx {
+				if expectedIdxs, ok := test.expectedTickerIdxs[ticker]; !ok {
+					t.Errorf("test \"%s\" failed: got unexpected ticker, got %s", name, ticker)
+					if !sliceEqual(resIdxs, expectedIdxs) {
+						t.Errorf("test \"%s\" failed: ticker %s got idxs %v, expected idxs %v", name, ticker, resIdxs, expectedIdxs)
+					}
+				}
+			}
+		}
 	}
 }

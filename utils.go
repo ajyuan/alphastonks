@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unicode"
 )
 
 func timer() func() {
@@ -30,6 +31,27 @@ func stringIn(list []string, a string) bool {
 		}
 	}
 	return false
+}
+
+func isUpper(word string) bool {
+	for _, char := range word {
+		if !unicode.IsUpper(char) || !unicode.IsLetter(char) {
+			return false
+		}
+	}
+	return true
+}
+
+func sliceEqual(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func roundPriceDown(value float32) float64 {

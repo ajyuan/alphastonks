@@ -30,14 +30,10 @@ const (
 	postTimeSuffix = "\","
 
 	// Modifiers
-	buyLowConfidence   = 0.13
-	buyMedConfidence   = 0.6
-	buyHighConfidence  = 0.15
-	sellHighConfidence = -0.8
-	lowBuyMult         = 0.65
-	medBuyMult         = 5.0
-	highBuyMult        = 1.0
-	highSellMult       = 100
+	buyLowConfidence  = 0.13
+	buyHighConfidence = 0.15
+	lowBuyMult        = 0.65
+	highBuyMult       = 1.0
 
 	// Actions
 	actionNoOp = 0
@@ -56,7 +52,7 @@ var (
 
 	// String filters
 	actionExecutableTimeFilter = []string{"hour", "day", "minute", "week", "month", "year"}
-	tickerFalsePositives       = []string{"I", "A", "ET", "DD", "DM", "ARK", "CEO", "ETF", "NOT", "USD", "VERY", "SUPER", "REALLY"}
+	tickerFalsePositives       = map[string]struct{}{"I": {}, "A": {}, "ET": {}, "DD": {}, "DM": {}, "ARK": {}, "CEO": {}, "ETF": {}, "NOT": {}, "USD": {}, "VERY": {}, "SUPER": {}, "REALLY": {}}
 
 	// Time Config
 	nyTimezone       *time.Location
@@ -144,7 +140,7 @@ func Tick(cl *http.Client, alpacaCl *alpaca.Client) error {
 }
 
 func main() {
-	log.Infof("AlphaStonks v.%s", "1.06")
+	log.Infof("AlphaStonks v.%s", "1.07")
 	setupOutput := setup()
 	if marketHoliday(setupOutput.alpacaCl) && !ignoreMarketHours {
 		log.Infof("The time is %v and it is a market holiday, shutting down", time.Now())
