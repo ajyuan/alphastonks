@@ -52,7 +52,7 @@ var (
 
 	// String filters
 	actionExecutableTimeFilter = []string{"hour", "day", "minute", "week", "month", "year"}
-	tickerFalsePositives       = map[string]struct{}{"I": {}, "A": {}, "ET": {}, "DD": {}, "DM": {}, "ARK": {}, "CEO": {}, "ETF": {}, "NOT": {}, "USD": {}, "VERY": {}, "SUPER": {}, "REALLY": {}}
+	tickerFalsePositives       = map[string]struct{}{"I": {}, "A": {}, "ET": {}, "DD": {}, "DM": {}, "ARK": {}, "CEO": {}, "ETF": {}, "IMO": {}, "NOT": {}, "USA": {}, "USD": {}, "LONG": {}, "VERY": {}, "SHORT": {}, "SUPER": {}, "REALLY": {}}
 
 	// Time Config
 	nyTimezone       *time.Location

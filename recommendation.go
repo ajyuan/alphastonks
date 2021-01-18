@@ -52,6 +52,9 @@ func isTickerBasic(word string) bool {
 	if string(word[0]) == "$" {
 		word = word[1:]
 	}
+	if len(word) == 0 {
+		return false
+	}
 	if !unicode.IsLetter(rune(word[len(word)-1])) {
 		word = word[:len(word)-1]
 	}
