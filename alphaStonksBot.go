@@ -99,7 +99,7 @@ func marketHoliday(alpacaCl *alpaca.Client) bool {
 }
 
 func setup() setupOutput {
-	log.SetLevel(logrus.DebugLevel)
+	log.SetLevel(logrus.InfoLevel)
 	rand.Seed(time.Now().UnixNano())
 	log.Debug("Establishing NY Time Offset")
 	var err error
@@ -143,13 +143,13 @@ func main() {
 	log.Infof("AlphaStonks v.%s", "1.07")
 	setupOutput := setup()
 	if marketHoliday(setupOutput.alpacaCl) && !ignoreMarketHours {
-		log.Infof("The time is %v and it is a market holiday, shutting down", time.Now())
+		log.Infof("Today is a market holiday, shutting down")
 		os.Exit(0)
 	}
 	log.Info("Setup complete")
 	for true {
 		if PastAH() && !ignoreMarketHours {
-			log.Infof("The time is %v and markets are closed, shutting down", time.Now().In(nyTimezone))
+			log.Infof("Markets are closed, shutting down")
 			os.Exit(0)
 		}
 
