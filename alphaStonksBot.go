@@ -70,13 +70,13 @@ type setupOutput struct {
 	alpacaCl *alpaca.Client
 }
 
-// PastAH indicates the time is past after-hours trading
-func PastAH() bool {
-	return time.Now().In(nyTimezone).Hour() == 18
+// PastTrainingHours indicates the time is past bot trading hours
+func PastTrainingHours() bool {
+	return time.Now().In(nyTimezone).Hour() == 16
 }
 
 func marketHoliday(alpacaCl *alpaca.Client) bool {
-	today := time.Now().Format("2006-01-02")
+	today := time.Now().In(nyTimezone).Format("2006-01-02")
 	calendar, err := alpacaCl.GetCalendar(&today, &today)
 	if err != nil {
 		log.Errorf("marketHoliday error occurred when retrieving calendar: %v", err)
@@ -157,7 +157,7 @@ func main() {
 	}
 	log.Info("Setup complete")
 	for true {
-		if PastAH() && !ignoreMarketHours {
+		if PastTrainingHours() && !ignoreMarketHours {
 			log.Infof("Markets are closed, shutting down")
 			os.Exit(0)
 		}
@@ -176,7 +176,6 @@ func main() {
 		}
 		sleepDuration := time.Millisecond * time.Duration(
 			minZero(int(tickDuration-time.Since(tickStart).Milliseconds())+rand.Intn(sleepRandRange)))
-		log.Debugf("Sleeping %v", sleepDuration)
 		time.Sleep(sleepDuration)
 	}
 }
