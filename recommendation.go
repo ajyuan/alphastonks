@@ -205,9 +205,10 @@ func actionWeight(profile *ActionProfile, sentiment float64) {
 // Recommendation analyzes a post recommend action
 func Recommendation(post *YTPostDetails) *ActionProfile {
 	if (!discoveredWithinBounds(post.postTime) || post.postText == "") && !ignorePostAge {
-		log.Debugf("Last post was created at time %s, too late to be actionable. Skipping.", post.postTime)
+		log.Debugf("Recommendation detected last post was created at time %s, too late to be actionable. Skipping.", post.postTime)
 		return &ActionProfile{}
 	}
 	profile := actionProfile(post.postText)
+	log.Infof("Recommendation %v", profile)
 	return profile
 }

@@ -13,11 +13,6 @@ import (
 )
 
 const (
-	// Testing vars
-	// SET TO FALSE BEFORE PUSHING
-	ignoreMarketHours = false
-	ignorePostAge     = false
-
 	// Base clock speed: 1 tick per tickDuration in milliseconds
 	tickDuration = 512
 
@@ -42,6 +37,12 @@ const (
 )
 
 var (
+	// Testing vars
+	// SET TO FALSE BEFORE PUSHING
+	ignoreMarketHours = false
+	ignorePostAge     = false
+	benchmark         = false
+
 	// Alpaca Config
 	alpacaID        = os.Getenv("ALPACA_ID")
 	alpacaSecret    = os.Getenv("ALPACA_SECRET")
@@ -88,6 +89,20 @@ func marketHoliday(alpacaCl *alpaca.Client) bool {
 	return today != calendar[0].Date
 }
 
+func processArgs() {
+	for _, arg := range os.Args[1:] {
+		if arg == "imh" {
+			ignoreMarketHours = true
+		} else if arg == "ipa" {
+			ignorePostAge = true
+		} else if arg == "d" {
+			log.SetLevel(logrus.DebugLevel)
+		} else if arg == "b" {
+			benchmark = true
+		}
+	}
+}
+
 func setup() setupOutput {
 	log.SetLevel(logrus.InfoLevel)
 	rand.Seed(time.Now().UnixNano())
@@ -116,7 +131,9 @@ func setup() setupOutput {
 
 // Tick performs all steps to do one iteration of the check & buy algo
 func Tick(cl *http.Client, alpacaCl *alpaca.Client) error {
-	// defer timer()()
+	if benchmark {
+		defer timer()()
+	}
 	post, err := YTPost(cl)
 	if err != nil {
 		return err
@@ -130,8 +147,9 @@ func Tick(cl *http.Client, alpacaCl *alpaca.Client) error {
 }
 
 func main() {
-	log.Infof("AlphaStonks v.%s", "1.7.1")
+	log.Infof("AlphaStonks v.%s", "1.8.1")
 	setupOutput := setup()
+	processArgs()
 	if marketHoliday(setupOutput.alpacaCl) && !ignoreMarketHours {
 		log.Infof("Today is a market holiday, shutting down")
 		os.Exit(0)

@@ -48,7 +48,7 @@ func actionValue(alpacaCl *alpaca.Client, req *alpaca.PlaceOrderRequest, action 
 	orderLimitPrice := decimal.NewFromFloat(orderPriceFloat)
 	req.LimitPrice = &orderLimitPrice
 	maxBuyableShares := acct.BuyingPower.Div(orderLimitPrice).Sub(decimal.NewFromFloat32(0.5))
-	req.Qty = maxBuyableShares.Div(decimal.NewFromFloat32(action.multiplier)).Round(0)
+	req.Qty = maxBuyableShares.Mul(decimal.NewFromFloat32(action.multiplier)).Round(0)
 	return nil
 }
 
