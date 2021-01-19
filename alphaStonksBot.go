@@ -14,7 +14,8 @@ import (
 
 const (
 	// Base clock speed: 1 tick per tickDuration in milliseconds
-	tickDuration = 512
+	tickDuration   = 512
+	sleepRandRange = 512
 
 	// Community page parsing vars
 	ytTarget       = "https://www.youtube.com/c/Deadnsyde/community"
@@ -173,12 +174,9 @@ func main() {
 		if time.Since(tickStart) > time.Second*3 {
 			log.Warnf("Thottling detected, last request took %v", time.Since(tickStart))
 		}
-		/* Removed random timeout
 		sleepDuration := time.Millisecond * time.Duration(
 			minZero(int(tickDuration-time.Since(tickStart).Milliseconds())+rand.Intn(sleepRandRange)))
-		*/
-		sleepDuration := time.Millisecond * time.Duration(
-			minZero(int(tickDuration-time.Since(tickStart).Milliseconds())))
+		log.Debugf("Sleeping %v", sleepDuration)
 		time.Sleep(sleepDuration)
 	}
 }
