@@ -84,6 +84,36 @@ func TestTickerIdxs(t *testing.T) {
 	}
 }
 
+func TestDiscoveredWithinBounds(t *testing.T) {
+	tests := map[string]struct {
+		input          string
+		expectedOutput bool
+	}{
+		"1 second ago": {
+			input:          "1 second ago",
+			expectedOutput: true,
+		}, "2 seconds ago": {
+			input:          "2 seconds ago",
+			expectedOutput: true,
+		}, "single digit too late": {
+			input:          "3 seconds ago",
+			expectedOutput: false,
+		}, "double digits too late": {
+			input:          "10 seconds ago",
+			expectedOutput: false,
+		}, "undefined string": {
+			input:          "Just now",
+			expectedOutput: true,
+		},
+	}
+	for name, test := range tests {
+		out := discoveredWithinBounds(test.input)
+		if out != test.expectedOutput {
+			t.Fatalf("test \"%s\" failed expected %t, got %t", name, test.expectedOutput, out)
+		}
+	}
+}
+
 func TestNerTickers(t *testing.T) {
 	tests := map[string]struct {
 		text               string

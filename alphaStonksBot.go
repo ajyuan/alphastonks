@@ -54,7 +54,7 @@ var (
 
 	// String filters
 	actionExecutableTimeFilter = []string{"hour", "day", "minute", "week", "month", "year"}
-	tickerFalsePositives       = map[string]struct{}{"I": {}, "A": {}, "ET": {}, "DD": {}, "DM": {}, "ARK": {}, "BUT": {}, "CEO": {}, "ETF": {}, "LOT": {}, "IMO": {}, "NOT": {}, "USA": {}, "USD": {}, "LONG": {}, "VERY": {}, "SHORT": {}, "SUPER": {}, "REALLY": {}}
+	tickerFalsePositives       = map[string]struct{}{"I": {}, "A": {}, "AI": {}, "ET": {}, "DD": {}, "DM": {}, "ML": {}, "ARK": {}, "BUT": {}, "CEO": {}, "ETF": {}, "LOT": {}, "IMO": {}, "NOT": {}, "USA": {}, "USD": {}, "LONG": {}, "VERY": {}, "COVID": {}, "SHORT": {}, "SUPER": {}, "REALLY": {}}
 	abortKeywords              = map[string]struct{}{"bots": {}, "botting": {}}
 
 	// Time Config
