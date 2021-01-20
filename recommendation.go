@@ -54,7 +54,8 @@ func discoveredWithinBounds(ytTimeString string) bool {
 	if ytTimeString[1:8] == " second" {
 		age, err := strconv.Atoi(string(ytTimeString[0]))
 		if err != nil {
-			log.Errorf("Unknown time %s", ytTimeString)
+			log.Errorf("Error processing time %s: %v", ytTimeString, err)
+			return false
 		}
 		if age <= 2 {
 			return true
@@ -65,7 +66,6 @@ func discoveredWithinBounds(ytTimeString string) bool {
 			return false
 		}
 	}
-	log.Errorf("Unknown time %s", ytTimeString)
 	return false
 }
 
