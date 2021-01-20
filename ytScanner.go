@@ -1,12 +1,17 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
 )
+
+type ytTextJSON struct {
+	Text string
+}
 
 // YTPostDetails contains details about a post required to make an action on it
 type YTPostDetails struct {
@@ -36,17 +41,30 @@ func communityPage(cl *http.Client, target string) (string, error) {
 	return string(page), err
 }
 
+func postText(page string) (string, error) {
+	postTextMatch := postTextRe.FindStringSubmatch(page)[1]
+	var unmarshalled []ytTextJSON
+	err := json.Unmarshal([]byte(postTextMatch), &unmarshalled)
+	if err != nil {
+		return "", fmt.Errorf("Failed to unmarshal %s: %v", postTextMatch, err)
+	}
+	postText := ""
+	for _, postSection := range unmarshalled {
+		postText += postSection.Text
+	}
+	return postText, nil
+}
+
 // YTPost extracts information about the latest post from YT
 func YTPost(cl *http.Client) (*YTPostDetails, error) {
 	page, err := communityPage(cl, ytTarget)
 	if err != nil {
 		return nil, err
 	}
-	postText, err := substrPrefSuf(page, postTextPrefix, postTextSuffix)
+	postText, err := postText(page)
 	if err != nil {
 		return nil, err
 	}
-	postText = cleanHTMLString(postText)
 	postTime, err := substrPrefSuf(page, postTimePrefix, postTimeSuffix)
 	if err != nil {
 		return nil, err

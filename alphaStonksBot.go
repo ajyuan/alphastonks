@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/alpacahq/alpaca-trade-api-go/alpaca"
@@ -38,8 +39,8 @@ var (
 	alpacaSecret    = os.Getenv("ALPACA_SECRET")
 	alpacaMarketURL = os.Getenv("ALPACA_MARKET_URL")
 
-	// ErrInsufficientFunds indicates not enough funds to buy stock at calculated limit price
-	ErrInsufficientFunds = fmt.Errorf("No money")
+	// YT Parse Regex
+	postTextRe = regexp.MustCompile("\"contentText\":{\"runs\":(\\[{.*?\\])")
 
 	// String filters
 	actionExecutableTimeFilter = []string{"hour", "day", "minute", "week", "month", "year"}
@@ -50,6 +51,9 @@ var (
 	nyTimezone       *time.Location
 	ytReqTimeout     = time.Second * 16
 	orderTimeInForce = time.Second * 8
+
+	// ErrInsufficientFunds indicates not enough funds to buy stock at calculated limit price
+	ErrInsufficientFunds = fmt.Errorf("No money")
 
 	log = logrus.New()
 )
@@ -140,7 +144,7 @@ func Tick(cl *http.Client, alpacaCl *alpaca.Client) error {
 }
 
 func main() {
-	log.Infof("AlphaStonks v.%s", "2.0.0")
+	log.Infof("AlphaStonks v.%s", "2.0.1")
 	setupOutput := setup()
 	processArgs()
 	if marketHoliday(setupOutput.alpacaCl) && !ignoreMarketHours {
