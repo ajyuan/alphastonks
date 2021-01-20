@@ -23,7 +23,7 @@ func TestDiscoveredWithinBounds(t *testing.T) {
 			expectedOutput: false,
 		}, "undefined string": {
 			input:          "Just now",
-			expectedOutput: true,
+			expectedOutput: false,
 		},
 	}
 	for name, test := range tests {

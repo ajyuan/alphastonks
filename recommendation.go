@@ -49,7 +49,7 @@ type ActionProfile struct {
 func discoveredWithinBounds(ytTimeString string) bool {
 	if len(ytTimeString) < 9 {
 		log.Errorf("discoveredWitinBounds error: Post discovery time %s is less than 9 characters", ytTimeString)
-		return true
+		return false
 	}
 	if ytTimeString[1:8] == " second" {
 		age, err := strconv.Atoi(string(ytTimeString[0]))
