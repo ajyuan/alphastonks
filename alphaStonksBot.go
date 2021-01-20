@@ -24,17 +24,6 @@ const (
 	postTextSuffix = "},"
 	postTimePrefix = "\"publishedTimeText\":{\"runs\":[{\"text\":\""
 	postTimeSuffix = "\","
-
-	// Modifiers
-	buyLowConfidence  = 0.13
-	buyHighConfidence = 0.15
-	lowBuyMult        = 0.65
-	highBuyMult       = 1.0
-
-	// Actions
-	actionNoOp = 0
-	actionBuy  = 1
-	actionSell = 2
 )
 
 var (
@@ -54,7 +43,7 @@ var (
 
 	// String filters
 	actionExecutableTimeFilter = []string{"hour", "day", "minute", "week", "month", "year"}
-	tickerFalsePositives       = map[string]struct{}{"I": {}, "A": {}, "AI": {}, "ET": {}, "DD": {}, "DM": {}, "ML": {}, "ARK": {}, "BUT": {}, "CEO": {}, "ETF": {}, "LOT": {}, "IMO": {}, "NOT": {}, "USA": {}, "USD": {}, "LONG": {}, "VERY": {}, "COVID": {}, "SHORT": {}, "SUPER": {}, "REALLY": {}}
+	tickerFalsePositives       = map[string]struct{}{"I": {}, "A": {}, "AI": {}, "ET": {}, "DD": {}, "DM": {}, "ML": {}, "ARK": {}, "BTC": {}, "BUT": {}, "CEO": {}, "ETF": {}, "LOT": {}, "IMO": {}, "NOT": {}, "USA": {}, "USD": {}, "LONG": {}, "VERY": {}, "COVID": {}, "SHORT": {}, "SUPER": {}, "REALLY": {}}
 	abortKeywords              = map[string]struct{}{"bots": {}, "botting": {}}
 
 	// Time Config
@@ -139,8 +128,11 @@ func Tick(cl *http.Client, alpacaCl *alpaca.Client) error {
 	if err != nil {
 		return err
 	}
-	action := Recommendation(post)
-	err = Execute(action, alpacaCl)
+	actions, err := Recommendation(post)
+	if err != nil {
+		return err
+	}
+	err = Execute(actions, alpacaCl)
 	if err != nil {
 		return err
 	}
@@ -148,7 +140,7 @@ func Tick(cl *http.Client, alpacaCl *alpaca.Client) error {
 }
 
 func main() {
-	log.Infof("AlphaStonks v.%s", "1.8.1")
+	log.Infof("AlphaStonks v.%s", "2.0.0")
 	setupOutput := setup()
 	processArgs()
 	if marketHoliday(setupOutput.alpacaCl) && !ignoreMarketHours {

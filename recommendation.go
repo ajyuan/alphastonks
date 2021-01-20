@@ -1,13 +1,35 @@
 package main
 
 import (
-	"math"
+	"context"
+	"fmt"
 	"strconv"
 	"strings"
-	"unicode"
+	"time"
 
-	"github.com/grassmudhorses/vader-go"
-	"github.com/jdkato/prose/v2"
+	language "cloud.google.com/go/language/apiv1"
+	languagepb "google.golang.org/genproto/googleapis/cloud/language/v1"
+)
+
+const (
+	// Decision Thresholds
+	lowBuyScoreThresh    = 0.0
+	highBuyScoreThresh   = 0.1
+	lowBuyMagThresh      = 0.1
+	highBuyMagThresh     = 0.1
+	salienceThresh       = 0.01
+	fbLowBuyScoreThresh  = 0.2
+	fbHighBuyScoreThresh = 0.32
+
+	lowBuyMult       = 0.64
+	highBuyMult      = 1.0
+	lowFallbackMult  = 0.2
+	highFallbackMult = 0.32
+
+	// Actions
+	actionNoOp = 0
+	actionBuy  = 1
+	actionSell = 2
 )
 
 // TickerProfile contains the sentiment for a ticker
@@ -47,20 +69,6 @@ func discoveredWithinBounds(ytTimeString string) bool {
 	return false
 }
 
-// cleanTicker attempts to remove noise from a word to resolve to a ticker
-func cleanTicker(word string) string {
-	if string(word[0]) == "$" {
-		word = word[1:]
-	}
-	if len(word) == 0 {
-		return ""
-	}
-	if !unicode.IsLetter(rune(word[len(word)-1])) {
-		word = word[:len(word)-1]
-	}
-	return word
-}
-
 // isTickerBasic returns if a string is a ticker
 func isTickerBasic(word string) bool {
 	if len(word) > 5 || len(word) == 0 || !isUpper(word) {
@@ -72,143 +80,85 @@ func isTickerBasic(word string) bool {
 	return true
 }
 
-func nerTickersIdx(postText string, tickerIdxs map[string][]int) (map[string][]int, error) {
-	doc, err := prose.NewDocument(postText)
+func analyzeEntitySentiment(ctx context.Context, client *language.Client, text string) (*languagepb.AnalyzeEntitySentimentResponse, error) {
+	return client.AnalyzeEntitySentiment(ctx, &languagepb.AnalyzeEntitySentimentRequest{
+		Document: &languagepb.Document{
+			Source: &languagepb.Document_Content{
+				Content: text,
+			},
+			Type: languagepb.Document_PLAIN_TEXT,
+		},
+	})
+}
+
+func actionableEntity(postText string) (*languagepb.Entity, error) {
+	ctx := context.Background()
+	langCl, err := language.NewClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create GCP NLP Client: %v", err)
+	}
+	sentiment, err := analyzeEntitySentiment(ctx, langCl, postText)
+	if err != nil {
+		log.Errorf("Failed to analyze text: %v", err)
+		return nil, nil
+	}
+
+	for _, entity := range sentiment.Entities {
+		if !isTickerBasic(entity.GetName()) || entity.GetSentiment().Score < lowBuyScoreThresh {
+			continue
+		}
+		if entity.GetSalience() < salienceThresh {
+			return nil, nil
+		}
+		return entity, nil
+	}
+	return nil, nil
+}
+
+// cloudActionProfile populates a stock profile with a recommendation
+func cloudActionProfile(entity *languagepb.Entity) *ActionProfile {
+	//fmt.Printf("Ticker: %s\nText: %s\nPositivity: %f\nNegativity: %f\nNeutral: %f\nCompound: %f\n\n", profile.ticker, postText, score.Positive, score.Negative, score.Neutral, tickerProfile.sentiment)
+	if entity == nil {
+		return nil
+	}
+	out := &ActionProfile{ticker: entity.Name}
+	if entity.GetSentiment().Score >= highBuyScoreThresh && entity.Sentiment.GetMagnitude() >= highBuyMagThresh {
+		out.action = actionBuy
+		out.multiplier = highBuyMult
+	} else if entity.GetSentiment().Score >= lowBuyScoreThresh && entity.Sentiment.GetMagnitude() >= lowBuyMagThresh {
+		out.action = actionBuy
+		out.multiplier = lowBuyMult
+	} else {
+		return nil
+	}
+	return out
+}
+
+// actionProfile returns a list of actions to execute based on post content
+func actionProfile(postText string) (*ActionProfile, error) {
+	start := time.Now()
+	entity, err := actionableEntity(postText)
 	if err != nil {
 		return nil, err
 	}
-	nerEntities := doc.Entities()
-	if len(nerEntities) == 0 {
-		return tickerIdxs, nil
+	out := cloudActionProfile(entity)
+	if out == nil {
+		log.Infof("Could not generate action using cloud action profiling, using fallback action profiling.")
+		out = fallbackActionProfile(postText)
 	}
-	nerTickerIdxs := map[string][]int{}
-	gpeFound := false
-	for _, ent := range nerEntities {
-		if ent.Label == "GPE" {
-			if idxs, ok := tickerIdxs[ent.Text]; ok {
-				nerTickerIdxs[ent.Text] = idxs
-				gpeFound = true
-			}
-		}
-	}
-	if gpeFound {
-		log.Infof("nerTickersIdx resolved via GPE entities, %v tickers selected", nerTickerIdxs)
-		return nerTickerIdxs, nil
-	}
-	for _, ent := range nerEntities {
-		if idxs, ok := tickerIdxs[ent.Text]; ok {
-			nerTickerIdxs[ent.Text] = idxs
-		}
-	}
-	if len(nerTickerIdxs) == 0 {
-		log.Warnf("nerTickersIdx failed to detect matching entities, returning main ticker list")
-		return tickerIdxs, nil
-	}
-	log.Infof("nerTickersIdx resolved via PERSON entities, %v tickers selected", nerTickerIdxs)
-	return nerTickerIdxs, nil
-}
-
-// tickerIdxs returns a mapping of ticker to indexes where it occurs
-func tickerIdxs(postText string, lines []string) map[string][]int {
-	tickerIdxs := map[string][]int{}
-	for i, line := range lines {
-		var currLineTicker string
-		words := strings.Split(line, " ")
-		for _, word := range words {
-			if len(word) == 0 {
-				continue
-			}
-			if _, ok := abortKeywords[word]; ok {
-				log.Warnf("tickerIdxs found abort keyword %s! Ignoring post.", word)
-			}
-			word = cleanTicker(word)
-			if len(word) == 0 {
-				continue
-			}
-			if isTickerBasic(word) {
-				// Throw out line if ticker conflict
-				// TODO: Analyze which ticker is more liked
-				// TODO: Split into 2 action profiles if both liked
-				if currLineTicker != "" {
-					log.Warnf("Ticker conflict for sentence \"line\", candidates: %s and %s", currLineTicker, word)
-					continue
-				}
-				currLineTicker = word
-			}
-		}
-		if currLineTicker != "" {
-			tickerIdxs[currLineTicker] = append(tickerIdxs[currLineTicker], i)
-		}
-	}
-	if len(tickerIdxs) > 1 {
-		log.Infof("tickerIdxs: multiple potential tickers found: %v, attempting to NER resolve", tickerIdxs)
-		nerTickers, err := nerTickersIdx(postText, tickerIdxs)
-		if err != nil {
-			log.Error(err)
-		} else {
-			return nerTickers
-		}
-	}
-	return tickerIdxs
-}
-
-// actionProfile returns a mapping of possible tickers to their rated sentiment
-func actionProfile(postText string) *ActionProfile {
-	lines := strings.Split(postText, ". ")
-	tickerIdxs := tickerIdxs(postText, lines)
-	out := ActionProfile{}
-	if len(tickerIdxs) == 0 {
-		log.Info(tickerIdxs)
-		log.Infof("No tickers found, or abort keyword found, in post \"%s\"", postText)
-	}
-
-	var topScore float64
-	for ticker, idxs := range tickerIdxs {
-		var currScore float64
-		extraLinesRead := 0.0
-		for _, idx := range idxs {
-			currScore += (vader.GetSentiment(lines[idx]).Compound)
-			j := idx + 1
-			for j < len(lines) && !intIn(idxs, j) {
-				extraSent := vader.GetSentiment(lines[j]).Compound
-				currScore += extraSent
-				extraLinesRead += 1.0
-				if math.Abs(extraSent) >= 0.2 {
-					break
-				}
-				j++
-			}
-		}
-		currScore = currScore / (float64(len(idxs)) + extraLinesRead)
-
-		if currScore > topScore {
-			// TODO: Mkt cap based tiebreaking for equal score (ex. tickers mentioned once, in same sentence)
-			out.ticker = ticker
-		}
-		actionWeight(&out, currScore)
-	}
-	return &out
-}
-
-// actionWeight populates a stock profile with a recommendation
-func actionWeight(profile *ActionProfile, sentiment float64) {
-	//fmt.Printf("Ticker: %s\nText: %s\nPositivity: %f\nNegativity: %f\nNeutral: %f\nCompound: %f\n\n", profile.ticker, postText, score.Positive, score.Negative, score.Neutral, tickerProfile.sentiment)
-	if sentiment > buyHighConfidence {
-		profile.action = actionBuy
-		profile.multiplier = highBuyMult
-	} else if sentiment > buyLowConfidence {
-		profile.action = actionBuy
-		profile.multiplier = lowBuyMult
-	}
+	log.Infof("Generated action %v in %v", out, time.Since(start))
+	return out, nil
 }
 
 // Recommendation analyzes a post recommend action
-func Recommendation(post *YTPostDetails) *ActionProfile {
+func Recommendation(post *YTPostDetails) (*ActionProfile, error) {
 	if (!discoveredWithinBounds(post.postTime) || post.postText == "") && !ignorePostAge {
 		log.Debugf("Recommendation detected last post was created at time %s, too late to be actionable. Skipping.", post.postTime)
-		return &ActionProfile{}
+		return nil, nil
 	}
-	profile := actionProfile(post.postText)
-	log.Infof("Recommendation %v", profile)
-	return profile
+	profile, err := actionProfile(post.postText)
+	if err != nil {
+		return nil, err
+	}
+	return profile, nil
 }

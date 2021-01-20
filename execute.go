@@ -71,9 +71,7 @@ func orderRequest(alpacaCl *alpaca.Client, action *ActionProfile) (*alpaca.Place
 	return &req, nil
 }
 
-// Execute executes an action profile
-// Dependencies: AlpacaAPI
-func Execute(action *ActionProfile, alpacaCl *alpaca.Client) error {
+func doAction(action *ActionProfile, alpacaCl *alpaca.Client) error {
 	if action.action == actionNoOp {
 		return nil
 	}
@@ -92,6 +90,19 @@ func Execute(action *ActionProfile, alpacaCl *alpaca.Client) error {
 	log.Infof("Order Placed: %v", order)
 	time.Sleep(orderTimeInForce)
 	alpacaCl.CancelOrder(order.ID)
+	return nil
+}
+
+// Execute executes a list of action profiles
+// Dependencies: AlpacaAPI
+func Execute(action *ActionProfile, alpacaCl *alpaca.Client) error {
+	if action == nil {
+		return nil
+	}
+	err := doAction(action, alpacaCl)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

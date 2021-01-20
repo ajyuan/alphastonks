@@ -37,6 +37,8 @@ func TestExecute(t *testing.T) {
 				action:     actionBuy,
 				multiplier: highBuyMult,
 			},
+		}, "nil": {
+			input: nil,
 		},
 	}
 	for name, test := range tests {
