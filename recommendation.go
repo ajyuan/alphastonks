@@ -92,7 +92,8 @@ func analyzeEntitySentiment(ctx context.Context, client *language.Client, text s
 }
 
 func actionableEntity(postText string) (*languagepb.Entity, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
 	langCl, err := language.NewClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create GCP NLP Client: %v", err)
