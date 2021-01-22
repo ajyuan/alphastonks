@@ -84,7 +84,7 @@ func doAction(action *ActionProfile, alpacaCl *alpaca.Client) error {
 	if err != nil {
 		return err
 	}
-	if req.Qty.Equal(decimal.Zero) {
+	if req.Qty.LessThanOrEqual(decimal.Zero) {
 		log.Infof("Insufficient funds to %s %s %v@%v", req.Side, *req.AssetKey, req.Qty, req.LimitPrice)
 		return ErrInsufficientFunds
 	}

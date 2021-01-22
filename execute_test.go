@@ -43,8 +43,10 @@ func TestExecute(t *testing.T) {
 	}
 	for name, test := range tests {
 		err := Execute(test.input, testCl)
-		if err != nil {
-			log.Fatalf("test \"%s\" failed, got error %v", name, err)
+		if err == ErrInsufficientFunds {
+			t.Errorf("test \"%s\" could not be executed due to insufficient funds", name)
+		} else if err != nil {
+			t.Fatalf("test \"%s\" failed, got error %v", name, err)
 		}
 	}
 }
