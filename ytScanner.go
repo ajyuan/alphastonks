@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 )
 
@@ -42,9 +41,6 @@ func communityPage(cl *http.Client, target string) (string, error) {
 		return "", fmt.Errorf("fetchPage failed to request page: %v", err)
 	}
 	page, err := ioutil.ReadAll(resp.Body)
-	f, _ := os.Create("com-page.html")
-	defer f.Close()
-	f.Write(page)
 	return string(page), err
 }
 
