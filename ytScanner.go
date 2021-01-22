@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+var (
+	// ErrPostTxtNotFound indicates no post text was found in a given post
+	ErrPostTxtNotFound = fmt.Errorf("No post text found in page")
+	// ErrPostDateNotFound indicates no post text was found in a given post
+	ErrPostDateNotFound = fmt.Errorf("No post date found in page")
+)
+
 type ytTextJSON struct {
 	Text string
 }
@@ -42,7 +49,11 @@ func communityPage(cl *http.Client, target string) (string, error) {
 }
 
 func postText(page string) (string, error) {
-	postTextMatch := postTextRe.FindStringSubmatch(page)[1]
+	reMatches := postTextRe.FindStringSubmatch(page)
+	if len(reMatches) < 2 {
+		return "", ErrPostTxtNotFound
+	}
+	postTextMatch := reMatches[1]
 	var unmarshalled []ytTextJSON
 	err := json.Unmarshal([]byte(postTextMatch), &unmarshalled)
 	if err != nil {
@@ -67,7 +78,7 @@ func YTPost(cl *http.Client) (*YTPostDetails, error) {
 	}
 	postTime, err := substrPrefSuf(page, postTimePrefix, postTimeSuffix)
 	if err != nil {
-		return nil, err
+		return nil, ErrPostDateNotFound
 	}
 	return &YTPostDetails{
 		postText: postText,

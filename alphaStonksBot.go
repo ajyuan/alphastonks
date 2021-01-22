@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
@@ -51,9 +50,6 @@ var (
 	nyTimezone       *time.Location
 	ytReqTimeout     = time.Second * 16
 	orderTimeInForce = time.Second * 8
-
-	// ErrInsufficientFunds indicates not enough funds to buy stock at calculated limit price
-	ErrInsufficientFunds = fmt.Errorf("No money")
 
 	log = logrus.New()
 )
@@ -130,7 +126,8 @@ func Tick(cl *http.Client, alpacaCl *alpaca.Client) error {
 	}
 	post, err := YTPost(cl)
 	if err != nil {
-		return err
+		log.Error(err)
+		return nil
 	}
 	actions, err := Recommendation(post)
 	if err != nil {

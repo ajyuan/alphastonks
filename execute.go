@@ -8,6 +8,11 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var (
+	// ErrInsufficientFunds indicates not enough funds to buy stock at calculated limit price
+	ErrInsufficientFunds = fmt.Errorf("No money")
+)
+
 // IsAH determines if the current time is within the after-hours trading window
 func IsAH() bool {
 	currHour := time.Now().In(nyTimezone).Hour()

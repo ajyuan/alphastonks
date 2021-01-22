@@ -8,6 +8,11 @@ import (
 	"unicode"
 )
 
+var (
+	// ErrSubstrNotFound indicates a substring was not found in a given string
+	ErrSubstrNotFound = fmt.Errorf("No substring found")
+)
+
 func timer() func() {
 	start := time.Now()
 	return func() {
@@ -61,7 +66,7 @@ func roundPriceDown(value float32) float64 {
 func substrPrefSuf(page, prefix, suffix string) (string, error) {
 	si, n, ei := strings.Index(page, prefix)+len(prefix), len(suffix), -1
 	if si == -1 {
-		return "", fmt.Errorf("extractPosts failed to find data prefix \"%s\"", postTextPrefix)
+		return "", ErrSubstrNotFound
 	}
 	for i := si + 1; i < len(page)-n; i++ {
 		if page[i:i+n] == suffix {
@@ -70,7 +75,7 @@ func substrPrefSuf(page, prefix, suffix string) (string, error) {
 		}
 	}
 	if ei == -1 {
-		return "", fmt.Errorf("extractPosts failed to find data suffix \"%s\"", suffix)
+		return "", ErrSubstrNotFound
 	}
 	return page[si:ei], nil
 }
