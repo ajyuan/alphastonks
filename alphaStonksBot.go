@@ -13,6 +13,8 @@ import (
 )
 
 const (
+	projectID = "alphastonks"
+
 	// Base clock speed: 1 tick per tickDuration in milliseconds
 	tickDuration   = 512
 	sleepRandRange = 512
@@ -43,7 +45,7 @@ var (
 
 	// String filters
 	actionExecutableTimeFilter = []string{"hour", "day", "minute", "week", "month", "year"}
-	tickerFalsePositives       = map[string]struct{}{"I": {}, "A": {}, "AI": {}, "ET": {}, "DD": {}, "DM": {}, "ML": {}, "ARK": {}, "BTC": {}, "BUT": {}, "CEO": {}, "ETF": {}, "LOT": {}, "IMO": {}, "NOT": {}, "USA": {}, "USD": {}, "LONG": {}, "VERY": {}, "COVID": {}, "SHORT": {}, "SUPER": {}, "REALLY": {}}
+	tickerFalsePositives       = map[string]struct{}{"I": {}, "A": {}, "AI": {}, "ET": {}, "DD": {}, "DM": {}, "ML": {}, "ARK": {}, "BTC": {}, "BUT": {}, "CEO": {}, "ETF": {}, "HAS": {}, "LOT": {}, "IMO": {}, "NOT": {}, "USA": {}, "USD": {}, "LONG": {}, "VERY": {}, "COVID": {}, "SHORT": {}, "SUPER": {}, "REALLY": {}}
 	abortKeywords              = map[string]struct{}{"bots": {}, "botting": {}}
 
 	// Time Config
@@ -160,8 +162,7 @@ func main() {
 		if err != nil {
 			if err == ErrInsufficientFunds {
 			} else {
-				log.Error(err)
-				panic(err)
+				log.Fatal(err)
 			}
 		}
 		if time.Since(tickStart) > time.Second*3 {
