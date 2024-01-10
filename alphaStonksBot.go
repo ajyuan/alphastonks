@@ -21,7 +21,7 @@ const (
 
 	// Community page parsing vars
 	ytTarget       = "https://www.youtube.com/c/Deadnsyde/community"
-	cookieData     = "LOGIN_INFO=AFmmF2swRQIgHMWsQHQ-90wybzpWtLWiT2ZBzVTEpBFKRTY8uZdr2KcCIQCLbYFdhRci3b09nS5XwhMIcJSyTPYCcj06VInnihPG4g:QUQ3MjNmdy12NW1Hc0l5d1lwRkNJTVoyYVhwR1d1MzJKa2Q2VEc4RDRvM0xwdlE4R3FuS2hoVDRadXdPaWtZeEk1TExWdjRVVG1WcGJnMmIxdVJ4Q0JTcWt4RlhoeU16R09YVU9XX2E5Zk1RT3ZQSnpUdzFrMmI5M0Zhb2RCMTBfMjdPMG4tNjhNdWo0dGw4MWZnZFkzcXdDVGg4U0tFa1QzQTVGRm9hMHNpN3BBdWZ6Tnk2MnE0; __Secure-3PSID=5gdH74PTb42Ro1o50WJwfDou628f_muSSJ2NXUIWDT0ksniTlIQ9jnM90C7zEyoUopRlrg."
+	cookieData     = "LOGIN_INFO=<YOUR COOKIE DATA HERE>"
 	postTextPrefix = "\"contentText\":{\"runs\":[{\"text\":\""
 	postTextSuffix = "},"
 	postTimePrefix = "\"publishedTimeText\":{\"runs\":[{\"text\":\""
